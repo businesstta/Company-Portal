@@ -1,0 +1,15 @@
+{
+  "name": "company-portal",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.32.1",
+  "scripts": {
+    "dev:api": "pnpm --filter @company-portal/api dev",
+    "dev:web": "pnpm --filter @company-portal/web dev",
+    "dev:mobile": "pnpm --filter @company-portal/mobile dev",
+    "start:api": "pnpm --filter @company-portal/api start",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "check": "pnpm lint && pnpm build"
+  }
+}
