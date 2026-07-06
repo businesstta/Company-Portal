@@ -10,7 +10,9 @@ Company Portal is a PostgreSQL-backed people and operations platform for HR admi
 - Leave, overtime, appraisal, and approval workflows
 - Real-time-style pending and notification counters with read/unread status
 - Announcements with document and image attachments
-- Corporate payment and advance-clearance requests
+- Corporate payment requests with attachments, unique `PRF-YYYY-XXXXXXX` references, multi-step approval journeys, notifications, My Requests tracking, and A4 print views
+- Approval setup for Department Head, Finance Approver, and Cashier workflow steps
+- Navigation branding, system settings, nested navigation, and granular role access for menus and submenus
 - HR item masters for departments, organizations, and project locations
 - Reports and Excel downloads
 - Responsive desktop, tablet, and mobile layouts
@@ -95,7 +97,7 @@ Windows users can alternatively run the launchers in `scripts/`.
 | --- | --- |
 | API | `http://localhost:4000` |
 | API health check | `http://localhost:4000/health` |
-| Administration web app | `http://localhost:5173` |
+| Administration web app | `http://localhost:5180` |
 | Employee app | `http://localhost:5174` |
 
 Development seed credentials are `kyaw thu` / `Admin@123`. Change all seeded credentials before exposing any environment publicly.
@@ -130,20 +132,96 @@ Both commands must pass before deployment.
 
 ## Production deployment
 
-1. Provision PostgreSQL and create a dedicated least-privilege database user.
-2. Configure production environment variables. Use a strong random `JWT_SECRET` and HTTPS URLs in `WEB_ORIGIN` and `VITE_API_URL`.
-3. Install exact dependencies and build all applications:
+### 1. Provision the server
 
-   ```bash
-   pnpm install --frozen-lockfile
-   pnpm --filter @company-portal/api migrate
-   pnpm build
-   ```
+Install Node.js 22+, pnpm 10.32.1, PostgreSQL 14+, and a reverse proxy such as Nginx. Clone this repository and check out the deployed branch or release tag.
 
-4. Start the API from `apps/api` with `pnpm start` or a process manager such as systemd, PM2, or a container platform.
-5. Serve `apps/web/dist` and `apps/mobile/dist` from a static host or reverse proxy.
-6. Route HTTPS traffic to the API and persist the API `uploads` directory in durable storage.
-7. Back up PostgreSQL and uploaded files regularly.
+### 2. Configure PostgreSQL
+
+Create a dedicated database and application user. Do not reuse the PostgreSQL superuser. Back up the database before applying migrations to an existing installation.
+
+### 3. Configure production environment
+
+Create `apps/api/.env` from `apps/api/.env.example`:
+
+```dotenv
+PORT=4000
+DATABASE_URL=postgresql://company_portal_app:STRONG_PASSWORD@127.0.0.1:5432/company_portal
+JWT_SECRET=REPLACE_WITH_A_LONG_RANDOM_SECRET
+WEB_ORIGIN=https://portal.example.com,https://employee.example.com
+```
+
+Create `apps/web/.env.production` and `apps/mobile/.env.production` before building:
+
+```dotenv
+VITE_API_URL=https://portal.example.com/api
+```
+
+`VITE_API_URL` is compiled into the frontend bundles. Rebuild the frontend whenever it changes.
+
+### 4. Install, migrate, and build
+
+Run from the repository root:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm --filter @company-portal/api migrate
+pnpm build
+```
+
+Do not run `seed` in production. Employee master data should be imported from the production Employees module after deployment.
+
+### 5. Run the API continuously
+
+The API entry point after building is `apps/api/dist/server.js`. Run it from `apps/api` so the `.env` file and `uploads` directory resolve correctly. Use a service manager rather than a temporary terminal process.
+
+Example with PM2:
+
+```bash
+cd apps/api
+pm2 start dist/server.js --name company-portal-api
+pm2 save
+pm2 startup
+```
+
+Verify the API before exposing traffic:
+
+```bash
+curl http://127.0.0.1:4000/health
+```
+
+The response must report both `status: ok` and `database: connected`.
+
+### 6. Serve the frontend and proxy the API
+
+- Serve `apps/web/dist` as the main portal static site.
+- Serve `apps/mobile/dist` separately if the employee application is deployed.
+- Proxy `/api` and `/health` to `http://127.0.0.1:4000`.
+- Enable HTTPS and redirect HTTP to HTTPS.
+- Configure SPA fallback so unknown frontend routes return `index.html`.
+- Increase reverse-proxy upload limits to at least 10 MB per attachment.
+
+### 7. Persist application data
+
+The following are not stored in Git and must be protected separately:
+
+- PostgreSQL database
+- `apps/api/uploads` attachment directory
+- Production `.env` files and secrets
+
+Back up both PostgreSQL and the uploads directory. Restoring only the database will not restore announcement or request attachments.
+
+### 8. Deploy future updates
+
+```bash
+git pull --ff-only
+pnpm install --frozen-lockfile
+pnpm --filter @company-portal/api migrate
+pnpm build
+pm2 restart company-portal-api
+```
+
+After each deployment, verify `/health`, sign in with a non-admin test account, and test one permitted and one restricted navigation item.
 
 Migrations are applied in filename order. Do not rename or edit a migration after it has been deployed; add a new numbered migration instead.
 
