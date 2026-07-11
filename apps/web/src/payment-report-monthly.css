@@ -1,0 +1,203 @@
+.payment-report-charts > .monthly-type-card + article {
+  display: none;
+}
+
+.payment-report-charts {
+  grid-template-columns: 0.82fr 1.08fr 1.1fr;
+}
+
+.payment-report-charts > .current-month-amount-card,
+.payment-report-charts > .monthly-type-card {
+  min-height: 300px;
+}
+
+.payment-month-chart {
+  padding: 14px 2px 0;
+}
+
+.payment-month-plot {
+  height: 170px;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 8px;
+  align-items: end;
+  padding: 12px 10px 0;
+  border-left: 2px solid #ff8d3a;
+  border-bottom: 1px solid #dfe5ee;
+  background:
+    linear-gradient(180deg, rgba(51, 128, 216, 0.08), transparent 58%),
+    repeating-linear-gradient(180deg, transparent 0 39px, rgba(226, 231, 239, 0.75) 40px);
+}
+
+.payment-month-column {
+  height: 100%;
+  display: grid;
+  grid-template-rows: 1fr 18px;
+  align-items: end;
+  text-align: center;
+}
+
+.payment-month-bars {
+  height: 138px;
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  gap: 3px;
+}
+
+.payment-month-bars span {
+  width: 10px;
+  min-height: 0;
+  border-radius: 4px 4px 1px 1px;
+  box-shadow: 0 4px 10px rgba(21, 31, 52, 0.08);
+}
+
+.payment-month-bars .payment,
+.payment-month-legend i.payment {
+  background: #3380d8;
+}
+
+.payment-month-bars .advance,
+.payment-month-legend i.advance {
+  background: #f28d2e;
+}
+
+.payment-month-column small {
+  font-size: 9px;
+  color: #6e7887;
+}
+
+.payment-month-legend {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.payment-month-legend > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.payment-month-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.payment-month-legend b {
+  display: block;
+  font-size: 11px;
+}
+
+.payment-month-legend small {
+  display: block;
+  font-size: 9px;
+  color: #7b8796;
+  margin-top: 1px;
+}
+
+.current-month-amount {
+  padding-top: 14px;
+}
+
+.amount-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f1eeff, #f8fbff);
+  border: 1px solid #e5e1ff;
+  margin-bottom: 12px;
+}
+
+.amount-head i {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: #6755dc;
+  color: #fff;
+  font: 800 18px Manrope;
+  font-style: normal;
+  box-shadow: 0 8px 18px rgba(103, 85, 220, 0.22);
+}
+
+.amount-head small,
+.amount-head strong {
+  display: block;
+}
+
+.amount-head small {
+  font-size: 10px;
+  color: #7a8493;
+}
+
+.amount-head strong {
+  margin-top: 2px;
+  font: 800 15px Manrope;
+  color: #202b3b;
+}
+
+.amount-breakdown {
+  border-top: 1px solid #edf0f4;
+  padding-top: 10px;
+  margin-top: 9px;
+}
+
+.amount-breakdown h3 {
+  margin: 0 0 7px;
+  font: 800 10px Manrope;
+  color: #7a8493;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.amount-breakdown div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 25px;
+}
+
+.amount-breakdown span {
+  font-size: 10px;
+  color: #5d6878;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.amount-breakdown b {
+  font-size: 11px;
+  color: #1f2937;
+  white-space: nowrap;
+}
+
+.amount-breakdown p {
+  margin: 8px 0 0;
+  color: #8a95a3;
+  font-size: 10px;
+}
+
+@media (max-width: 700px) {
+  .payment-month-plot {
+    gap: 5px;
+    padding-inline: 6px;
+  }
+
+  .payment-month-bars span {
+    width: 8px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .payment-report-charts {
+    grid-template-columns: 1fr;
+  }
+}

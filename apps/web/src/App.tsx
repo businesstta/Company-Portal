@@ -7,6 +7,7 @@ import "./employee-list.css";
 import "./users-roles.css";
 import "./settings-management.css";
 import "./navigation-enhancements.css";
+import "./payment-report-monthly.css";
 
 const nav = [
   "Overview",
@@ -38,19 +39,7 @@ const corporateSubmenus = [
   "Vehicle Request Form",
 ];
 const fleetSubmenus = ["Vehicle Management"];
-const approvalSubmenus = [
-  "Leave Approval",
-  "Overtime Approval",
-  "Request Check In/Out Approval",
-  "Request Late In/Out Approval",
-  "Travelling Request Approval",
-  "Payment Request Approval",
-  "Advance Clearance Request Approval",
-  "Material Request Approval",
-  "Service Request Approval",
-  "Stationary Request Approval",
-  "Vehicle Request Approval",
-];
+const approvalSubmenus:string[]=[];
 const reportGroups = [
   {
     name: "HR Management",
@@ -135,6 +124,13 @@ type Confirmation = {
   action: "approved" | "rejected";
   name?: string;
 };
+
+function AnnouncementThumbnail({announcementId,attachment,token}:{announcementId:unknown;attachment:Record<string,unknown>;token:string}){
+  const [url,setUrl]=useState("");const isImage=String(attachment.mimeType??"").startsWith("image/")
+  useEffect(()=>{if(!isImage)return;let objectUrl="";fetch(`${API}/dashboard/announcements/${announcementId}/attachments/${attachment.id}`,{headers:{Authorization:`Bearer ${token}`}}).then(response=>response.ok?response.blob():Promise.reject()).then(blob=>{objectUrl=URL.createObjectURL(blob);setUrl(objectUrl)}).catch(()=>{});return()=>{if(objectUrl)URL.revokeObjectURL(objectUrl)}},[announcementId,attachment.id,isImage,token])
+  const open=async()=>{const response=await fetch(`${API}/dashboard/announcements/${announcementId}/attachments/${attachment.id}`,{headers:{Authorization:`Bearer ${token}`}});if(!response.ok)return;const objectUrl=URL.createObjectURL(await response.blob());window.open(objectUrl,"_blank","noopener,noreferrer");window.setTimeout(()=>URL.revokeObjectURL(objectUrl),60000)}
+  return <button className={`announcement-thumbnail ${isImage?"image":"file"}`} onClick={open}>{isImage&&url?<img src={url} alt={String(attachment.name??"Announcement attachment")}/>:<><span>{String(attachment.mimeType).includes("pdf")?"PDF":"FILE"}</span><small>{String(attachment.name??"Attachment")}</small></>}</button>
+}
 type MasterConfirmation = {
   mode: "add" | "remove";
   itemType: string;
@@ -540,6 +536,24 @@ function formatDateTimeDDMMYYYY(date: Date): string {
   return `${formatDateDDMMYYYY(date)} ${hours}:${minutes}`;
 }
 
+function formatDateTimeAMPM(date:Date):string{
+  if(Number.isNaN(date.getTime()))return "â€”";
+  const hours=date.getHours(),minutes=String(date.getMinutes()).padStart(2,"0");
+  return `${formatDateDDMMYYYY(date)} ${String(hours%12||12).padStart(2,"0")}:${minutes} ${hours>=12?"PM":"AM"}`;
+}
+
+function requestFormName(type:unknown):string{
+  const key=String(type??"").toLowerCase();
+  const names:Record<string,string>={
+    payment:"Payment Request Form",advance_clearance:"Advance Clearance Request Form",
+    leave:"Leave Request Form",overtime:"Overtime Request Form",attendance_correction:"Check In/Out Request Form",
+    late_in:"Late In Request Form",early_out:"Early Out Request Form",travelling:"Travelling Request Form",
+    material:"Material Request Form",service:"Service Request Form",stationary:"Stationary Request Form",
+    vehicle:"Vehicle Request Form",appraisal:"Appraisal Request Form"
+  };
+  return names[key]??`${key.replaceAll("_"," ").replace(/\b\w/g,letter=>letter.toUpperCase())} Request Form`;
+}
+
 // Keep every rendered portal date consistent, including legacy table cells.
 Date.prototype.toLocaleDateString=function(){return Number.isNaN(this.getTime())?'—':formatDateDDMMYYYY(this)};
 Date.prototype.toLocaleString=function(){return Number.isNaN(this.getTime())?'—':formatDateTimeDDMMYYYY(this)};
@@ -552,6 +566,7 @@ function DataPage({
   onRequestsChanged,
   onBrandingChanged,
   onNavigate,
+  selectedAnnouncementId,
 }: {
   page: string;
   token: string;
@@ -560,6 +575,7 @@ function DataPage({
   onRequestsChanged?: () => void;
   onBrandingChanged?: (branding: Branding) => void;
   onNavigate?: (page: string) => void;
+  selectedAnnouncementId?: string;
 }) {
   const [rows, setRows] = useState<unknown>([]);
   const [loading, setLoading] = useState(true);
@@ -574,6 +590,7 @@ function DataPage({
     unknown
   > | null>(null);
   const [selectedCorporateRequest, setSelectedCorporateRequest] = useState<Record<string, unknown> | null>(null);
+  const [selectedAnnouncement,setSelectedAnnouncement]=useState<Record<string,unknown>|null>(null);
   const [corporateConfirmation, setCorporateConfirmation] = useState<Confirmation | null>(null);
   const [editingEmployee, setEditingEmployee] = useState(false);
   const [masterItems, setMasterItems] = useState<Record<string, unknown>[]>([]);
@@ -593,6 +610,9 @@ function DataPage({
     employeeNo: "", name: "", position: "", department: "",
     organization: "", projectLocation: "", reportTo: "", role: "",
   });
+  const [userPage, setUserPage] = useState(1);
+  const [userPageSize, setUserPageSize] = useState(25);
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [permissionDraft, setPermissionDraft] = useState<Record<string, boolean>>({});
   const [permissionDirty, setPermissionDirty] = useState(false);
   const [permissionNotice, setPermissionNotice] = useState("");
@@ -601,6 +621,9 @@ function DataPage({
   const [paymentAmountText, setPaymentAmountText] = useState("");
   const [paymentTypeValue, setPaymentTypeValue] = useState("");
   const [paymentCurrency, setPaymentCurrency] = useState("MMK");
+  const [paymentReportFilters,setPaymentReportFilters]=useState({from:"",to:"",status:"",department:"",search:""});
+  const [paymentReportPage, setPaymentReportPage] = useState(1);
+  const [paymentReportPageSize, setPaymentReportPageSize] = useState(25);
   const [showPaymentSubmitConfirmation, setShowPaymentSubmitConfirmation] = useState(false);
   const paymentRequestFormRef = useRef<HTMLFormElement | null>(null);
   const paymentSubmitConfirmedRef = useRef(false);
@@ -639,7 +662,7 @@ function DataPage({
       : page === "Attendance"
         ? "attendance"
         : page === "Approvals"
-          ? "requests?status=pending"
+          ? "approvals/all"
           : corporateApprovalType[page]
             ? `corporate-requests?type=${corporateApprovalType[page]}`
           : approvalType[page]
@@ -658,6 +681,8 @@ function DataPage({
                       ? "my-requests"
                     : page === "Reports"
                       ? "reports/summary"
+                    : page === "Payment Request Report"
+                      ? "reports/payment-requests"
                         : page === "Users & Roles"
                           ? "users"
                           : page === "Approval Setup"
@@ -674,6 +699,7 @@ function DataPage({
   const listRows = Array.isArray(rows)
     ? (rows as Record<string, unknown>[])
     : [];
+  const canManageAnnouncements = ["admin", "hr"].includes(role);
   const displayRows = page === "Employees"
     ? [...listRows].filter((row) => {
         const includes = (value: unknown, search: string) => String(value ?? "").toLowerCase().includes(search.trim().toLowerCase());
@@ -703,8 +729,19 @@ function DataPage({
           includes(row.report_to, userFilters.reportTo) && includes(row.role, userFilters.role);
       })
     : listRows;
-  const updateUserFilter = (key: keyof UserFilters, value: string) =>
+  const userTotalPages = Math.max(1, Math.ceil(filteredUserRows.length / userPageSize));
+  const currentUserPage = Math.min(userPage, userTotalPages);
+  const pagedUserRows = page === "Users & Roles"
+    ? filteredUserRows.slice((currentUserPage - 1) * userPageSize, currentUserPage * userPageSize)
+    : filteredUserRows;
+  const updateUserFilter = (key: keyof UserFilters, value: string) => {
     setUserFilters((current) => ({ ...current, [key]: value }));
+    setUserPage(1);
+  };
+  const updatePaymentReportFilter = (patch: Partial<typeof paymentReportFilters>) => {
+    setPaymentReportFilters((current) => ({ ...current, ...patch }));
+    setPaymentReportPage(1);
+  };
   const updateEmployeeFilter = (key: keyof EmployeeFilters, value: string) => {
     setEmployeeFilters((current) => ({ ...current, [key]: value }));
     setEmployeePage(1);
@@ -733,6 +770,7 @@ function DataPage({
       });
   };
   useEffect(load, [endpoint, token]);
+  useEffect(()=>{if(page!=="Announcements"||!selectedAnnouncementId||!Array.isArray(rows))return;const match=(rows as Record<string,unknown>[]).find(row=>String(row.id)===selectedAnnouncementId);if(match)setSelectedAnnouncement(match)},[page,rows,selectedAnnouncementId]);
   useEffect(() => {
     if (page !== "Role Access Control" || !Array.isArray(rows)) return;
     const draft: Record<string, boolean> = {};
@@ -1032,7 +1070,7 @@ function DataPage({
         remark: f.get("remark"),
       }));
     }
-    const r = await fetch(`${API}/corporate-requests`, {
+    const r = await fetch(`${API}/corporate-requests?type=${isPayment?'payment':corporateType[page]}`, {
       method: "POST",
       headers: isPayment ? { Authorization: `Bearer ${token}` } : {
         Authorization: `Bearer ${token}`, "Content-Type": "application/json",
@@ -1056,12 +1094,22 @@ function DataPage({
   };
   const selectMyRequest = async (row: Record<string,unknown>) => {
     if (row.source === 'corporate') return selectCorporateRequest(row.id);
-    setSelectedCorporateRequest({request:row,steps:[],attachments:[],canAct:false});
+    setSelectedCorporateRequest({request:row,steps:[],attachments:[],canAct:page==="Approvals"&&String(row.status)==="pending"});
   };
   const actCorporateRequest = async () => {
     if (!corporateConfirmation) return;
     const response=await fetch(`${API}/corporate-requests/${corporateConfirmation.id}/action`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({action:corporateConfirmation.action})});
-    if(response.ok){setCorporateConfirmation(null);await selectCorporateRequest(corporateConfirmation.id);load();onNotificationsChanged?.();onRequestsChanged?.()}else{alert((await response.json()).error??'Unable to update request')}
+    if(response.ok){
+      setCorporateConfirmation(null);
+      setSelectedCorporateRequest(null);
+      await load();
+      onNotificationsChanged?.();
+      onRequestsChanged?.();
+    }else{
+      setCorporateConfirmation(null);
+      const payload=await response.json().catch(()=>({error:'Unable to update request'}));
+      alert(payload.error??'Unable to update request')
+    }
   };
   const openCorporateAttachment = async (requestId: unknown, attachment: Record<string,unknown>) => {
     const response=await fetch(`${API}/corporate-requests/${requestId}/attachments/${attachment.id}`,{headers:{Authorization:`Bearer ${token}`}});if(!response.ok)return alert('Unable to open attachment');const url=URL.createObjectURL(await response.blob());window.open(url,'_blank','noopener,noreferrer');window.setTimeout(()=>URL.revokeObjectURL(url),60000)
@@ -1111,12 +1159,12 @@ function DataPage({
     a.click();
     URL.revokeObjectURL(url);
   };
-  const markRead = async (id: unknown) => {
+  const markRead = async (id: unknown, refreshList = true) => {
     await fetch(`${API}/notifications/${id}/read`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}` },
     });
-    load();
+    if (refreshList) load();
     onNotificationsChanged?.();
   };
   const markAllRead = async () => {
@@ -1368,7 +1416,7 @@ function DataPage({
         </div>
         {showForm && (
           page === "Payment Request Form" ? (
-          <form className="employee-form payment-request-form" onSubmit={createCorporate}>
+          <form ref={paymentRequestFormRef} className="employee-form payment-request-form" onSubmit={createCorporate}>
             <div className="payment-form-heading"><div><p>PAYMENT REQUEST</p><h2>New Payment Request</h2><span>Complete the required payment information and submit it for approval.</span></div><button type="button" onClick={() => setShowForm(false)}>×</button></div>
             <fieldset><legend>Requester information</legend><div className="form-grid">
               <label>Submission Date<input value={formatDateDDMMYYYY(new Date())} readOnly /></label>
@@ -1389,7 +1437,7 @@ function DataPage({
               <label className="wide payment-attachments">Attachments<input name="attachments" type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" /><small>Up to 5 files, maximum 10 MB each.</small></label>
             </div></fieldset>
             <div className="payment-approval-note"><b>Approval workflow</b><span>Department Head Approver → Finance Approver → Cashier</span><small>Approvers are assigned from Users & Roles → Approval Setup.</small></div>
-            <div className="form-footer"><button type="button" onClick={() => setShowForm(false)}>Cancel</button><button className="primary">Submit Payment Request</button></div>
+            <div className="form-footer"><button type="button" onClick={() => setShowForm(false)}>Cancel</button><button type="button" className="primary" onClick={(event)=>{const form=event.currentTarget.form;if(!form?.reportValidity())return;paymentRequestFormRef.current=form;setShowPaymentSubmitConfirmation(true)}}>Submit Payment Request</button></div>
           </form>
           ) : (
           <form
@@ -1654,7 +1702,11 @@ function DataPage({
               <article
                 className={r.read_at ? "read" : ""}
                 key={String(r.id ?? i)}
-                onClick={() => { if (!r.read_at) void markRead(r.id); if (r.resource_type === 'corporate_request') onNavigate?.('My Requests'); }}
+                onClick={() => {
+                  const opensMyRequests = r.resource_type === "corporate_request";
+                  if (!r.read_at) void markRead(r.id, !opensMyRequests);
+                  if (opensMyRequests) onNavigate?.("My Requests");
+                }}
               >
                 <i>
                   <NavIcon name="Notification" />
@@ -1667,7 +1719,7 @@ function DataPage({
                   </small>
                 </div>
                 {!r.read_at && (
-                  <button onClick={() => markRead(r.id)}>Mark as read</button>
+                  <button onClick={(event) => { event.stopPropagation(); void markRead(r.id); }}>Mark as read</button>
                 )}
               </article>
             ))
@@ -1832,11 +1884,13 @@ function DataPage({
             <h1>Announcements</h1>
             <span>Company news with images, PDFs and documents</span>
           </div>
-          <button className="primary" onClick={() => setShowForm(true)}>
-            ＋ New announcement
-          </button>
+          {canManageAnnouncements && (
+            <button className="primary" onClick={() => setShowForm(true)}>
+              ＋ New announcement
+            </button>
+          )}
         </div>
-        {showForm && (
+        {showForm && canManageAnnouncements && (
           <form className="employee-form" onSubmit={createAnnouncement}>
             <h2>Publish announcement</h2>
             <div className="form-grid announcement-form">
@@ -1871,7 +1925,7 @@ function DataPage({
             <div className="loading">Loading…</div>
           ) : (
             listRows.map((r, i) => (
-              <article key={String(r.id ?? i)}>
+              <article key={String(r.id ?? i)} onClick={()=>setSelectedAnnouncement(r)}>
                 <div>📣</div>
                 <section>
                   <small>
@@ -1905,8 +1959,81 @@ function DataPage({
             ))
           )}
         </div>
+        {selectedAnnouncement&&<div className="announcement-detail-backdrop" onMouseDown={()=>setSelectedAnnouncement(null)}><section className="announcement-detail-dialog" onMouseDown={event=>event.stopPropagation()}><header><div><small>ANNOUNCEMENT</small><h2>{String(selectedAnnouncement.title)}</h2><p>Published {formatDateTimeAMPM(new Date(String(selectedAnnouncement.published_at??selectedAnnouncement.created_at)))}</p></div><button onClick={()=>setSelectedAnnouncement(null)}>×</button></header><div className="announcement-detail-content"><p>{String(selectedAnnouncement.body)}</p>{Array.isArray(selectedAnnouncement.attachments)&&selectedAnnouncement.attachments.length>0&&<div className="announcement-detail-files">{(selectedAnnouncement.attachments as Record<string,unknown>[]).map(file=><AnnouncementThumbnail key={String(file.id)} announcementId={selectedAnnouncement.id} attachment={file} token={token}/>)}</div>}</div></section></div>}
       </>
     );
+  if(page==="Payment Request Report"){
+    const departments=[...new Set(listRows.map(row=>String(row.department??"")).filter(Boolean))].sort();
+    const filtered=listRows.filter(row=>{
+      const created=String(row.submission_date??"").slice(0,10),search=paymentReportFilters.search.trim().toLowerCase();
+      return (!paymentReportFilters.from||created>=paymentReportFilters.from)&&(!paymentReportFilters.to||created<=paymentReportFilters.to)&&
+        (!paymentReportFilters.status||String(row.status)===paymentReportFilters.status)&&(!paymentReportFilters.department||String(row.department)===paymentReportFilters.department)&&
+        (!search||[row.reference_no,row.employee_no,row.requestor_name,row.pay_to,row.description].some(value=>String(value??"").toLowerCase().includes(search)));
+    });
+    const paymentReportTotalPages=Math.max(1,Math.ceil(filtered.length/paymentReportPageSize));
+    const currentPaymentReportPage=Math.min(paymentReportPage,paymentReportTotalPages);
+    const pagedPaymentReportRows=filtered.slice((currentPaymentReportPage-1)*paymentReportPageSize,currentPaymentReportPage*paymentReportPageSize);
+    const totalAmount=filtered.reduce((sum,row)=>sum+Number(row.amount??0),0);
+    const statusCount=(status:string)=>filtered.filter(row=>String(row.status)===status).length;
+    const chartColors=["#6755dc","#25a77d","#e7942f","#3380d8","#de5f73","#8b67d8"];
+    type PaymentChartItem={name:string;count:number;amount:number};
+    const aggregateBy=(key:"payment_type"|"department"):PaymentChartItem[]=>{
+      const groups:Record<string,PaymentChartItem>={};
+      for(const row of filtered){const name=String(row[key]??"Unknown")||"Unknown";const item=groups[name]??{name,count:0,amount:0};item.count+=1;item.amount+=Number(row.amount??0);groups[name]=item}
+      return Object.values(groups).sort((a,b)=>b.count-a.count||b.amount-a.amount);
+    };
+    const paymentTypeChart=aggregateBy("payment_type"),departmentChart=aggregateBy("department");
+    const monthLabels=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const monthlyPaymentTypes=monthLabels.map((label,index)=>{
+      const rows=filtered.filter(row=>{const date=new Date(String(row.submission_date));return !Number.isNaN(date.getTime())&&date.getMonth()===index});
+      const paymentRows=rows.filter(row=>String(row.payment_type??"").toLowerCase()==="payment");
+      const advanceRows=rows.filter(row=>String(row.payment_type??"").toLowerCase()==="advance");
+      return {label,paymentCount:paymentRows.length,advanceCount:advanceRows.length,paymentAmount:paymentRows.reduce((sum,row)=>sum+Number(row.amount??0),0),advanceAmount:advanceRows.reduce((sum,row)=>sum+Number(row.amount??0),0)};
+    });
+    const maxMonthlyPaymentType=Math.max(1,...monthlyPaymentTypes.flatMap(item=>[item.paymentCount,item.advanceCount]));
+    const paymentTypeTotals={
+      payment:paymentTypeChart.find(item=>item.name.toLowerCase()==="payment")??{name:"Payment",count:0,amount:0},
+      advance:paymentTypeChart.find(item=>item.name.toLowerCase()==="advance")??{name:"Advance",count:0,amount:0},
+    };
+    const currentMonth=new Date();
+    const currentMonthRows=filtered.filter(row=>{const date=new Date(String(row.submission_date));return !Number.isNaN(date.getTime())&&date.getFullYear()===currentMonth.getFullYear()&&date.getMonth()===currentMonth.getMonth()});
+    const aggregateAmount=(rows:Record<string,unknown>[],nameOf:(row:Record<string,unknown>)=>string)=>{
+      const groups:Record<string,{name:string;count:number;amount:number;currency:string}>={};
+      for(const row of rows){const currency=String(row.currency??"MMK");const name=nameOf(row);const key=`${name}::${currency}`;const item=groups[key]??{name,count:0,amount:0,currency};item.count+=1;item.amount+=Number(row.amount??0);groups[key]=item}
+      return Object.values(groups).sort((a,b)=>b.amount-a.amount||b.count-a.count);
+    };
+    const currentMonthCurrencyTotals=aggregateAmount(currentMonthRows,row=>String(row.currency??"MMK"));
+    const currentMonthTypeTotals=aggregateAmount(currentMonthRows,row=>String(row.payment_type??"Unknown")||"Unknown");
+    let chartProgress=0;
+    const donutGradient=paymentTypeChart.length?paymentTypeChart.map((item,index)=>{const start=chartProgress;chartProgress+=item.count/Math.max(filtered.length,1)*100;return `${chartColors[index%chartColors.length]} ${start}% ${chartProgress}%`}).join(","):"#e8ebf1 0 100%";
+    const departmentMax=Math.max(...departmentChart.map(item=>item.count),1);
+    return <>
+      <div className="page-title payment-report-title"><div><p>CORPORATE SERVICES</p><h1>Payment Request Report</h1><span>Review payment requests, approval progress and financial totals.</span></div><button className="primary" onClick={()=>downloadReport("payment_requests")}>Export Excel ↓</button></div>
+      <section className="payment-report-charts">
+        <article className="current-month-amount-card"><header><div><h2>This Month Total Amount</h2><p>By currency and payment type</p></div></header><div className="current-month-amount"><div className="amount-head"><i>$</i><div><small>{currentMonth.toLocaleString("en-US",{month:"long",year:"numeric"})}</small><strong>{currentMonthRows.length} requests</strong></div></div><div className="amount-breakdown"><h3>Currency Type</h3>{currentMonthCurrencyTotals.length?currentMonthCurrencyTotals.map(item=><div key={`${item.name}-${item.currency}`}><span>{item.currency}</span><b>{item.amount.toLocaleString()} {item.currency}</b></div>):<p>No amount this month.</p>}</div><div className="amount-breakdown"><h3>Payment Type</h3>{currentMonthTypeTotals.length?currentMonthTypeTotals.slice(0,5).map(item=><div key={`${item.name}-${item.currency}`}><span>{item.name}</span><b>{item.amount.toLocaleString()} {item.currency}</b></div>):<p>No payment type data.</p>}</div></div></article>
+        <article className="monthly-type-card"><header><div><h2>Monthly Payment Type</h2><p>Payment and Advance requests by submission month</p></div></header><div className="payment-month-chart"><div className="payment-month-plot">{monthlyPaymentTypes.map(item=><div className="payment-month-column" key={item.label}><div className="payment-month-bars"><span className="payment" title={`${item.label} Payment: ${item.paymentCount} requests · ${item.paymentAmount.toLocaleString()}`} style={{height:`${item.paymentCount?Math.max(12,item.paymentCount/maxMonthlyPaymentType*100):0}%`}}/><span className="advance" title={`${item.label} Advance: ${item.advanceCount} requests · ${item.advanceAmount.toLocaleString()}`} style={{height:`${item.advanceCount?Math.max(12,item.advanceCount/maxMonthlyPaymentType*100):0}%`}}/></div><small>{item.label}</small></div>)}</div><div className="payment-month-legend"><div><i className="payment"/><span><b>Payment</b><small>{paymentTypeTotals.payment.count} requests · {paymentTypeTotals.payment.amount.toLocaleString()}</small></span></div><div><i className="advance"/><span><b>Advance</b><small>{paymentTypeTotals.advance.count} requests · {paymentTypeTotals.advance.amount.toLocaleString()}</small></span></div></div></div></article>
+        <article><header><div><h2>Requests by Payment Type</h2><p>Distribution of submitted payment requests</p></div></header><div className="payment-type-chart"><div className="payment-donut" style={{background:`conic-gradient(${donutGradient})`}}><span><b>{filtered.length}</b><small>Requests</small></span></div><div className="payment-chart-legend">{paymentTypeChart.map((item,index)=><div key={item.name}><i style={{background:chartColors[index%chartColors.length]}}/><span><b>{item.name}</b><small>{item.count} requests · {item.amount.toLocaleString()}</small></span><strong>{filtered.length?Math.round(item.count/filtered.length*100):0}%</strong></div>)}</div></div></article>
+        <article><header><div><h2>Top Requesting Departments</h2><p>Departments ranked by number of requests</p></div></header><div className="department-chart">{departmentChart.slice(0,6).map((item,index)=><div key={item.name}><div><span><i>{index+1}</i><b>{item.name}</b></span><strong>{item.count} requests</strong></div><div className="department-chart-track"><i style={{width:`${item.count/departmentMax*100}%`,background:chartColors[index%chartColors.length]}}/></div><small>{item.amount.toLocaleString()} total amount</small></div>)}{!departmentChart.length&&<p className="chart-empty">No payment request data available.</p>}</div></article>
+      </section>
+      <div className="payment-report-summary">
+        <article><small>Total Requests</small><strong>{filtered.length}</strong><span>Filtered records</span></article>
+        <article><small>Pending</small><strong>{statusCount("pending")}</strong><span>Awaiting approval</span></article>
+        <article><small>Approved</small><strong>{statusCount("approved")}</strong><span>Completed requests</span></article>
+        <article><small>Rejected</small><strong>{statusCount("rejected")}</strong><span>Declined requests</span></article>
+        <article><small>Total Amount</small><strong>{totalAmount.toLocaleString()}</strong><span>Across currencies</span></article>
+      </div>
+      <section className="payment-report-filters"><div><h2>Filter report</h2><button onClick={()=>{setPaymentReportFilters({from:"",to:"",status:"",department:"",search:""});setPaymentReportPage(1)}}>Clear filters</button></div>
+        <div className="payment-report-filter-grid">
+          <label>From Date<input type="date" value={paymentReportFilters.from} onChange={e=>updatePaymentReportFilter({from:e.target.value})}/></label>
+          <label>To Date<input type="date" value={paymentReportFilters.to} onChange={e=>updatePaymentReportFilter({to:e.target.value})}/></label>
+          <label>Status<select value={paymentReportFilters.status} onChange={e=>updatePaymentReportFilter({status:e.target.value})}><option value="">All statuses</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></label>
+          <label>Department<select value={paymentReportFilters.department} onChange={e=>updatePaymentReportFilter({department:e.target.value})}><option value="">All departments</option>{departments.map(department=><option key={department}>{department}</option>)}</select></label>
+          <label className="report-search">Search<input placeholder="Request ID, employee, pay to or description" value={paymentReportFilters.search} onChange={e=>updatePaymentReportFilter({search:e.target.value})}/></label>
+        </div>
+      </section>
+      <section className="data-card payment-report-table"><table><thead><tr><th>Request ID</th><th>Submission Date</th><th>Requestor</th><th>Department</th><th>Business Unit</th><th>Payment Type</th><th>Pay To</th><th>Amount</th><th>Status</th><th>Pending With</th></tr></thead><tbody>{pagedPaymentReportRows.map(row=><tr key={String(row.id)}><td><b>{String(row.reference_no)}</b></td><td>{new Date(String(row.submission_date)).toLocaleDateString()}</td><td><b>{String(row.requestor_name)}</b><small>{String(row.employee_no)}</small></td><td>{String(row.department??"—")}</td><td>{String(row.business_unit??"—")}</td><td>{String(row.payment_type??"—")}</td><td>{String(row.pay_to??"—")}</td><td><b>{Number(row.amount??0).toLocaleString()} {String(row.currency)}</b></td><td><span className={`pill ${String(row.status)}`}>{String(row.status)}</span></td><td>{String(row.status)==="pending"?String(row.pending_with??"Not assigned"):"—"}</td></tr>)}</tbody></table>{!loading&&!filtered.length&&<div className="loading">No payment requests match the selected filters.</div>}{filtered.length>0&&<div className="employee-pagination"><div>Showing {(currentPaymentReportPage-1)*paymentReportPageSize+1}–{Math.min(currentPaymentReportPage*paymentReportPageSize,filtered.length)} of {filtered.length} requests</div><div className="pagination-controls"><label>Rows<select value={paymentReportPageSize} onChange={event=>{setPaymentReportPageSize(Number(event.target.value));setPaymentReportPage(1)}}><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label><button disabled={currentPaymentReportPage===1} onClick={()=>setPaymentReportPage(value=>Math.max(1,value-1))}>Previous</button><span>Page</span><input aria-label="Payment report page number" type="number" min="1" max={paymentReportTotalPages} value={currentPaymentReportPage} onChange={event=>setPaymentReportPage(Math.min(paymentReportTotalPages,Math.max(1,Number(event.target.value)||1)))}/><span>of {paymentReportTotalPages}</span><button disabled={currentPaymentReportPage===paymentReportTotalPages} onClick={()=>setPaymentReportPage(value=>Math.min(paymentReportTotalPages,value+1))}>Next</button></div></div>}</section>
+    </>;
+  }
   if (page === "Reports") {
     const summary = (
       !Array.isArray(rows) && rows && typeof rows === "object" ? rows : {}
@@ -1988,7 +2115,7 @@ function DataPage({
         <section className="employee-filter-card users-filter-card">
           <div className="employee-filter-heading">
             <div><h2>Filter users</h2><p>Search user accounts by employee information and role.</p></div>
-            <button type="button" onClick={() => setUserFilters({ employeeNo: "", name: "", position: "", department: "", organization: "", projectLocation: "", reportTo: "", role: "" })}>Clear filters</button>
+            <button type="button" onClick={() => { setUserFilters({ employeeNo: "", name: "", position: "", department: "", organization: "", projectLocation: "", reportTo: "", role: "" }); setUserPage(1); }}>Clear filters</button>
           </div>
           <div className="employee-filter-grid">
             <label>Employee ID<input value={userFilters.employeeNo} onChange={(event) => updateUserFilter("employeeNo", event.target.value)} /></label>
@@ -2019,8 +2146,14 @@ function DataPage({
               </tr>
             </thead>
             <tbody>
-              {filteredUserRows.map((r, i) => (
-                <tr key={String(r.id ?? i)}>
+              {pagedUserRows.map((r, i) => {
+                const passwordKey = String(r.id ?? r.username ?? i);
+                const visiblePassword = Boolean(visiblePasswords[passwordKey]);
+                const realPassword = String(r.password_plain ?? r.initial_password ?? r.temporary_password ?? r.password ?? "");
+                const maskedPassword = String(r.password_mask ?? "********");
+                const passwordDisplay = visiblePassword ? (realPassword || maskedPassword) : maskedPassword;
+                return (
+                <tr key={passwordKey}>
                   <td>{String(r.employee_no ?? "—")}</td>
                   <td>
                     <b>
@@ -2046,12 +2179,32 @@ function DataPage({
                     </select>
                   </td>
                   <td className="username-cell">{String(r.username ?? "—")}</td>
-                  <td className="password-cell">{String(r.password_mask ?? "********")}</td>
+                  <td className="password-cell"><span>{passwordDisplay}</span><button type="button" className="password-eye-button" aria-label={visiblePassword ? "Hide password" : "Show password"} onClick={() => setVisiblePasswords((current) => ({ ...current, [passwordKey]: !current[passwordKey] }))}>{visiblePassword ? "🙈" : "👁"}</button></td>
                   <td><button className="reset-password-button" onClick={() => { setResetMessage(""); setResetUser(r); }}>Reset password</button></td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
+          {filteredUserRows.length > 0 && (
+            <div className="employee-pagination">
+              <div>
+                Showing {(currentUserPage - 1) * userPageSize + 1}–{Math.min(currentUserPage * userPageSize, filteredUserRows.length)} of {filteredUserRows.length} users
+              </div>
+              <div className="pagination-controls">
+                <label>
+                  Rows
+                  <select value={userPageSize} onChange={(event) => { setUserPageSize(Number(event.target.value)); setUserPage(1); }}>
+                    <option value="25">25</option><option value="50">50</option><option value="100">100</option>
+                  </select>
+                </label>
+                <button disabled={currentUserPage === 1} onClick={() => setUserPage((value) => Math.max(1, value - 1))}>Previous</button>
+                <span>Page</span>
+                <input aria-label="Users page number" type="number" min="1" max={userTotalPages} value={currentUserPage} onChange={(event) => setUserPage(Math.min(userTotalPages, Math.max(1, Number(event.target.value) || 1)))} />
+                <span>of {userTotalPages}</span>
+                <button disabled={currentUserPage === userTotalPages} onClick={() => setUserPage((value) => Math.min(userTotalPages, value + 1))}>Next</button>
+              </div>
+            </div>
+          )}
         </section>
         {resetUser && (
           <div className="confirm-backdrop" onMouseDown={() => setResetUser(null)}>
@@ -2165,6 +2318,8 @@ function DataPage({
       </>
     );
   }
+  const approvalDetail=page==="Approvals"?selectedCorporateRequest as {request?:Record<string,unknown>;steps?:Record<string,unknown>[];attachments?:Record<string,unknown>[];canAct?:boolean}|null:null;
+  const approvalRequest=approvalDetail?.request;
   return (
     <>
       <div className="page-title">
@@ -2515,11 +2670,11 @@ function DataPage({
                   </>
                 ) : (
                   <>
-                    <th>Employee</th>
-                    <th>Type</th>
-                    <th>Request</th>
-                    <th>Date</th>
-                    <th>{employeeApproval ? "Status" : "Actions"}</th>
+                    <th>{page==="Approvals"?"Submission Date":"Employee"}</th>
+                    <th>{page==="Approvals"?"Requester Name":"Type"}</th>
+                    <th>{page==="Approvals"?"Department":"Request / Description"}</th>
+                    <th>{page==="Approvals"?"Description":"Date"}</th>
+                    <th>{employeeApproval || page==="Approvals" ? "Status" : "Actions"}</th>
                   </>
                 )}
               </tr>
@@ -2529,11 +2684,7 @@ function DataPage({
                 <tr
                   key={String(r.id ?? i)}
                   className={page === "Employees" ? "employee-row" : ""}
-                  onClick={
-                    page === "Employees"
-                      ? () => selectEmployee(r.id)
-                      : undefined
-                  }
+                  onClick={page === "Employees"?()=>selectEmployee(r.id):page==="Approvals"?()=>selectMyRequest(r):undefined}
                 >
                   {page === "Employees" ? (
                     <>
@@ -2585,44 +2736,39 @@ function DataPage({
                     </>
                   ) : (
                     <>
-                      <td>
-                        <b>
-                          {String(r.first_name)} {String(r.last_name)}
-                        </b>
-                        <small>{String(r.employee_no)}</small>
-                      </td>
-                      <td>{String(r.request_type).replace("_", " ")}</td>
-                      <td>{String(r.title)}</td>
-                      <td>
-                        {new Date(String(r.created_at)).toLocaleDateString()}
-                      </td>
+                      {page==="Approvals"?(
+                        <>
+                          <td>{new Date(String(r.request_date??r.created_at)).toLocaleDateString()}</td>
+                          <td><b>{String(r.first_name)} {String(r.last_name)}</b><small>{String(r.employee_no)}</small></td>
+                          <td>{String(r.employee_department??r.department??"—")}</td>
+                          <td className="approval-request-description"><b>{String(r.description??r.title??"—")}</b><small>{requestFormName(r.request_type)} · {String(r.reference_no??r.id)}</small></td>
+                        </>
+                      ):(
+                        <>
+                          <td>
+                            <b>
+                              {String(r.first_name)} {String(r.last_name)}
+                            </b>
+                            <small>{String(r.employee_no)}</small>
+                          </td>
+                          <td><b>{String(r.request_type).replaceAll("_", " ")}</b></td>
+                          <td><b>{String(r.title)}</b>{Boolean(r.description)&&String(r.description)!==String(r.title)&&<small>{String(r.description)}</small>}</td>
+                          <td>
+                            {new Date(String(r.created_at)).toLocaleDateString()}
+                          </td>
+                        </>
+                      )}
                       <td className="table-actions">
-                        {employeeApproval ? (
+                        {employeeApproval || page==="Approvals" ? (
                           <span className={`pill ${String(r.status)}`}>
                             {String(r.status)}
                           </span>
                         ) : (
                           <>
-                            <button
-                              onClick={() =>
-                                setConfirmation({
-                                  id: String(r.id),
-                                  action: "rejected",
-                                  name: `${String(r.first_name)} ${String(r.last_name)}`,
-                                })
-                              }
-                            >
+                            <button onClick={(event) =>{event.stopPropagation();String(r.source)==="corporate"?setCorporateConfirmation({id:String(r.id),action:"rejected",name:String(r.reference_no??r.title)}):setConfirmation({id:String(r.id),action:"rejected",name:`${String(r.first_name)} ${String(r.last_name)}`})}}>
                               Reject
                             </button>
-                            <button
-                              onClick={() =>
-                                setConfirmation({
-                                  id: String(r.id),
-                                  action: "approved",
-                                  name: `${String(r.first_name)} ${String(r.last_name)}`,
-                                })
-                              }
-                            >
+                            <button onClick={(event) =>{event.stopPropagation();String(r.source)==="corporate"?setCorporateConfirmation({id:String(r.id),action:"approved",name:String(r.reference_no??r.title)}):setConfirmation({id:String(r.id),action:"approved",name:`${String(r.first_name)} ${String(r.last_name)}`})}}>
                               Approve
                             </button>
                           </>
@@ -2657,6 +2803,17 @@ function DataPage({
           </>
         )}
       </section>
+      {approvalDetail&&approvalRequest&&<div className="approval-detail-backdrop" onMouseDown={()=>setSelectedCorporateRequest(null)}><section className="approval-detail-modal" onMouseDown={event=>event.stopPropagation()}>
+        <header><div><p>APPROVAL REQUEST DETAILS</p><h2>{String(approvalRequest.reference_no??approvalRequest.title??approvalRequest.id)}</h2><span>{String(approvalRequest.first_name??approvalRequest.employee_name??"")} {String(approvalRequest.last_name??"")} · {String(approvalRequest.employee_no??"")}</span></div><button onClick={()=>setSelectedCorporateRequest(null)}>×</button></header>
+        <div className="approval-detail-summary">
+          <div><small>Request Type</small><b>{requestFormName(approvalRequest.request_type)}</b></div><div><small>Submission Date</small><b>{new Date(String(approvalRequest.request_date??approvalRequest.created_at)).toLocaleDateString()}</b></div><div><small>Status</small><b className={`status-text ${String(approvalRequest.status)}`}>{String(approvalRequest.status)}</b></div>
+          {Boolean(approvalRequest.employee_department)&&<div><small>Department</small><b>{String(approvalRequest.employee_department)}</b></div>}{Boolean(approvalRequest.payee)&&<div><small>Pay To</small><b>{String(approvalRequest.payee)}</b></div>}{approvalRequest.amount!=null&&<div><small>Total Amount</small><b>{Number(approvalRequest.amount).toLocaleString()} {String(approvalRequest.currency??"")}</b></div>}
+          <div className="wide"><small>Description</small><b>{String(approvalRequest.purpose??approvalRequest.description??approvalRequest.reason??approvalRequest.title??"—")}</b></div>
+        </div>
+        {Boolean(approvalDetail.steps?.length)&&<section className="approval-detail-journey"><h3>Approval Journey</h3>{approvalDetail.steps?.map((step,index)=><article key={String(step.step_order)}><i>{step.action==="approved"?"✓":step.action==="rejected"?"×":index+1}</i><div><b>{String(step.step_name)}</b><span>{String(step.approver_name??"Approver not assigned")}</span>{Boolean(step.acted_at)&&<small>{new Date(String(step.acted_at)).toLocaleString()}</small>}</div><strong className={String(step.action??(Number(step.step_order)===Number(approvalRequest.current_step)?"pending":"upcoming"))}>{String(step.action??(Number(step.step_order)===Number(approvalRequest.current_step)?"Waiting for approval":"Next approver"))}</strong></article>)}</section>}
+        {Boolean(approvalDetail.attachments?.length)&&<section className="approval-detail-attachments"><h3>Attachments</h3>{approvalDetail.attachments?.map(file=><button key={String(file.id)} onClick={()=>openCorporateAttachment(approvalRequest.id,file)}>↗ <span><b>{String(file.original_name)}</b><small>{String(file.mime_type)} · {(Number(file.file_size)/1024).toFixed(1)} KB</small></span></button>)}</section>}
+        {(approvalDetail.canAct||(!employeeApproval&&String(approvalRequest.status)==="pending"))&&<footer><button className="reject" onClick={()=>String(approvalRequest.source??(approvalRequest.reference_no?"corporate":"hr"))==="corporate"?setCorporateConfirmation({id:String(approvalRequest.id),action:"rejected",name:String(approvalRequest.reference_no)}):setConfirmation({id:String(approvalRequest.id),action:"rejected",name:String(approvalRequest.title)})}>Reject</button><button className="approve" onClick={()=>String(approvalRequest.source??(approvalRequest.reference_no?"corporate":"hr"))==="corporate"?setCorporateConfirmation({id:String(approvalRequest.id),action:"approved",name:String(approvalRequest.reference_no)}):setConfirmation({id:String(approvalRequest.id),action:"approved",name:String(approvalRequest.title)})}>Approve</button></footer>}
+      </section></div>}
       {confirmation && (
         <ConfirmDialog
           confirmation={confirmation}
@@ -2664,6 +2821,7 @@ function DataPage({
           onConfirm={decide}
         />
       )}{" "}
+      {corporateConfirmation&&<ConfirmDialog confirmation={corporateConfirmation} onCancel={()=>setCorporateConfirmation(null)} onConfirm={actCorporateRequest}/>} 
       {pendingEmployee && (
         <SaveEmployeeDialog
           name={String(pendingEmployee.nameEng ?? pendingEmployee.employeeNo)}
@@ -2763,16 +2921,19 @@ function App() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [employeePending, setEmployeePending] = useState<Approval[]>([]);
+  const [overviewAnnouncements,setOverviewAnnouncements]=useState<Record<string,unknown>[]>([]);
+  const [announcementSlide,setAnnouncementSlide]=useState(0);
+  const [announcementTargetId,setAnnouncementTargetId]=useState("");
   const [loginError, setLoginError] = useState("");
   const [active, setActive] = useState("Overview");
   const [notice, setNotice] = useState("");
   const [allowedMenus, setAllowedMenus] = useState<string[]>([]);
   const [currentRole, setCurrentRole] = useState("");
+  const [isWorkflowApprover, setIsWorkflowApprover] = useState(false);
   const [currentName, setCurrentName] = useState("");
   const [corporateOpen, setCorporateOpen] = useState(false);
   const [fleetOpen, setFleetOpen] = useState(false);
   const [humanResourceOpen, setHumanResourceOpen] = useState(false);
-  const [approvalsOpen, setApprovalsOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
   const [reportGroupOpen, setReportGroupOpen] = useState<string | null>(null);
   const [usersOpen, setUsersOpen] = useState(false);
@@ -2814,10 +2975,11 @@ function App() {
     if (!token) return;
     const headers = { Authorization: `Bearer ${token}` };
     const all = allowedMenus.includes("*");
-    const [dashboardResponse, requestsResponse, notificationResponse] = await Promise.all([
+    const [dashboardResponse, requestsResponse, notificationResponse,announcementsResponse] = await Promise.all([
       all || allowedMenus.includes("Overview") ? fetch(`${API}/dashboard`, { headers }) : Promise.resolve(null),
-      all || allowedMenus.includes("Approvals") ? fetch(`${API}/requests?status=pending`, { headers }) : Promise.resolve(null),
+      all || allowedMenus.includes("Approvals") || isWorkflowApprover ? fetch(`${API}/approvals/all`, { headers }) : Promise.resolve(null),
       all || allowedMenus.includes("Notification") ? fetch(`${API}/notifications/unread-count`, { headers }) : Promise.resolve(null),
+      all || allowedMenus.includes("Overview") ? fetch(`${API}/dashboard/announcements`,{headers}) : Promise.resolve(null),
     ]);
     if (dashboardResponse?.ok) setDashboard(await dashboardResponse.json());
     if (requestsResponse?.ok) {
@@ -2826,7 +2988,10 @@ function App() {
       else setApprovals(pending);
     }
     if (notificationResponse?.ok) setNotificationCount((await notificationResponse.json()).count);
-  }, [token, allowedMenus, currentRole]);
+    if(announcementsResponse?.ok){setOverviewAnnouncements(await announcementsResponse.json());setAnnouncementSlide(0)}
+  }, [token, allowedMenus, currentRole, isWorkflowApprover]);
+
+  useEffect(()=>{if(overviewAnnouncements.length<2)return;const timer=window.setInterval(()=>setAnnouncementSlide(current=>(current+1)%overviewAnnouncements.length),6000);return()=>window.clearInterval(timer)},[overviewAnnouncements.length]);
 
   useEffect(() => {
     if (!token) return;
@@ -2846,6 +3011,7 @@ function App() {
         const menus: string[] = navigation.menus;
         setAllowedMenus(menus);
         setCurrentRole(navigation.role);
+        setIsWorkflowApprover(Boolean(navigation.isWorkflowApprover));
         setCurrentName(`${profile.first_name} ${profile.last_name}`.trim());
         const all = menus.includes("*");
         setActive((current) =>
@@ -2859,8 +3025,8 @@ function App() {
           const d = await fetch(`${API}/dashboard`, { headers });
           if (d.ok) setDashboard(await d.json());
         }
-        if (all || menus.includes("Approvals")) {
-          const r = await fetch(`${API}/requests?status=pending`, { headers });
+        if (all || menus.includes("Approvals") || navigation.isWorkflowApprover) {
+          const r = await fetch(`${API}/approvals/all`, { headers });
           if (r.ok) {
             const pending = await r.json();
             if (navigation.role === "employee") setEmployeePending(pending);
@@ -3046,11 +3212,13 @@ function App() {
   ];
   const can = (menu: string) =>
     allowedMenus.includes("*") || allowedMenus.includes(menu);
+  const hasApprovalAccess =
+    currentRole === "employee" ? isWorkflowApprover : can("Approvals");
   const visibleNav = nav.filter((item) =>
     item === "Human Resource"
       ? can(item) || humanResourceSubmenus.some(can)
       : item === "Approvals"
-        ? can(item) || approvalSubmenus.some(can)
+        ? hasApprovalAccess
       : item === "Fleet Management"
         ? can(item) || fleetSubmenus.some(can)
       : item === "Corporate"
@@ -3064,6 +3232,11 @@ function App() {
       : can(item),
   );
   const navigate = (page: string) => {
+    if (page === "Approvals" && !hasApprovalAccess) {
+      setActive("My Requests");
+      setSidebarOpen(false);
+      return;
+    }
     setActive(page);
     setSidebarOpen(false);
   };
@@ -3191,30 +3364,11 @@ function App() {
                 )}
               </div>
             ) : item === "Approvals" ? (
-              <div className="nav-group" key={item}>
-                <button
-                  className={active === "Approvals" || approvalSubmenus.includes(active) ? "active" : ""}
-                  onClick={() => setApprovalsOpen((open) => !open)}
-                >
+                <button key={item} className={active === "Approvals" ? "active" : ""} onClick={() => navigate("Approvals")}>
                   <i><NavIcon name="Approvals" /></i>
                   {label("Approvals")}
                   <b>{currentRole === "employee" ? employeePending.length : (dashboard?.stats.pendingApprovals ?? 0)}</b>
-                  <span className={`chevron ${approvalsOpen ? "open" : ""}`}><ChevronIcon /></span>
                 </button>
-                {approvalsOpen && (
-                  <div className="sub-menu approval-sub-menu">
-                    {approvalSubmenus.filter(can).map((submenu) => (
-                      <button
-                        key={submenu}
-                        className={active === submenu ? "active" : ""}
-                        onClick={() => navigate(submenu)}
-                      >
-                        {submenu}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
             ) : item === "Reports" ? (
               <div className="nav-group" key={item}>
                 <button
@@ -3470,6 +3624,7 @@ function App() {
               onRequestsChanged={refreshLiveIndicators}
               onBrandingChanged={setBranding}
               onNavigate={navigate}
+              selectedAnnouncementId={announcementTargetId}
             />
           ) : (
             <>
@@ -3495,6 +3650,11 @@ function App() {
                   </article>
                 ))}
               </div>
+
+              <section className="overview-announcements card">
+                <div className="card-head"><div><h2>Announcements</h2><p>Latest company updates</p></div><div className="announcement-head-actions">{overviewAnnouncements.length>1&&<><button aria-label="Previous announcement" onClick={()=>setAnnouncementSlide(current=>(current-1+overviewAnnouncements.length)%overviewAnnouncements.length)}>‹</button><button aria-label="Next announcement" onClick={()=>setAnnouncementSlide(current=>(current+1)%overviewAnnouncements.length)}>›</button></>}{can("Announcements")&&<button className="announcement-view-all" onClick={()=>navigate("Announcements")}>View all <span>&rarr;</span></button>}</div></div>
+                {overviewAnnouncements.length?<><div className="overview-announcement-slider">{overviewAnnouncements.map((announcement,index)=>{const attachments=(announcement.attachments??[]) as Record<string,unknown>[];const hero=attachments.find(file=>String(file.mimeType??"").startsWith("image/"))??attachments[0];return <article key={String(announcement.id)} className={index===announcementSlide?"active":""} onClick={()=>{setAnnouncementTargetId(String(announcement.id));navigate("Announcements")}}><div className="announcement-hero">{hero?<AnnouncementThumbnail announcementId={announcement.id} attachment={hero} token={token}/>:<div className="announcement-hero-empty"><span>📣</span><small>No image attachment</small></div>}</div><div className="announcement-copy"><h3>{String(announcement.title)}</h3><small>Published {formatDateTimeAMPM(new Date(String(announcement.published_at)))}</small><p>{String(announcement.body)}</p><span className="announcement-read-more">View announcement <b>&rarr;</b></span></div></article>})}</div><div className="announcement-dots">{overviewAnnouncements.map((announcement,index)=><button key={String(announcement.id)} className={index===announcementSlide?"active":""} aria-label={`Show announcement ${index+1}`} onClick={()=>setAnnouncementSlide(index)}/>)}</div></>:<div className="overview-announcement-empty">No published announcements yet.</div>}
+              </section>
 
               <div className="grid">
                 <section className="card attendance">

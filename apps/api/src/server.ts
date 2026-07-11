@@ -25,6 +25,7 @@ const auth = (req: AuthRequest, res: Response, next: NextFunction) => {
   catch { res.status(401).json({ error: 'Authentication required' }) }
 }
 const permit=(menuKey:string)=>async(req:AuthRequest,res:Response,next:NextFunction)=>{if(req.user?.role==='admin')return next();const result=await db.query(`SELECT 1 FROM role_permissions rp JOIN employees e ON e.company_id=rp.company_id WHERE e.id=$1 AND rp.role=$2 AND rp.menu_key=$3 AND rp.allowed=true`,[req.user!.employeeId,req.user!.role,menuKey]);if(!result.rowCount)return res.status(403).json({error:`Permission denied: ${menuKey}`});next()}
+const permitCorporateRequest=async(req:AuthRequest,res:Response,next:NextFunction)=>{if(req.user?.role==='admin')return next();const requestType=String(req.query.type??req.body?.requestType??'');const menuKeys=requestType==='payment'?['Corporate','Payment Request Form','Payment Request']:requestType==='advance_clearance'?['Corporate','Advance Clearance Request Form','Advance Clearance']:['Corporate'];const result=await db.query(`SELECT 1 FROM role_permissions rp JOIN employees e ON e.company_id=rp.company_id WHERE e.id=$1 AND rp.role=$2 AND rp.menu_key=ANY($3::text[]) AND rp.allowed=true LIMIT 1`,[req.user!.employeeId,req.user!.role,menuKeys]);if(!result.rowCount)return res.status(403).json({error:`Permission denied: ${menuKeys[1]??menuKeys[0]}`});next()}
 const asyncRoute = (fn: (req: AuthRequest,res: Response)=>Promise<unknown>) => (req: AuthRequest,res: Response,next: NextFunction) => Promise.resolve(fn(req,res)).catch(next)
 const employeeUsername=(name:string)=>name.trim().toLowerCase().replace(/\s+/g,' ')
 const createEmployeeUser=async(query:{query:(text:string,values?:unknown[])=>Promise<{rows:Record<string,unknown>[];rowCount:number|null}>},employeeId:string|string[],name:string,email:string,passwordHash:string)=>{
@@ -53,15 +54,15 @@ app.post('/api/auth/change-password',auth,asyncRoute(async(req,res)=>{
 }))
 
 app.get('/api/dashboard', auth, asyncRoute(async (_req,res) => {
-  if(_req.user!.role==='employee'){const [attendance,pending]=await Promise.all([db.query(`SELECT status FROM attendance WHERE employee_id=$1 AND work_date=CURRENT_DATE`,[_req.user!.employeeId]),db.query(`SELECT count(*)::int total FROM requests WHERE employee_id=$1 AND status='pending'`,[_req.user!.employeeId])]);const status=attendance.rows[0]?.status;return res.json({stats:{totalEmployees:1,presentToday:status==='present'?1:0,lateToday:status==='late'?1:0,pendingApprovals:pending.rows[0].total},departments:[]})}
+  if(_req.user!.role==='employee'){const [attendance,pending]=await Promise.all([db.query(`SELECT status FROM attendance WHERE employee_id=$1 AND work_date=CURRENT_DATE`,[_req.user!.employeeId]),db.query(`SELECT ((SELECT count(*) FROM requests WHERE employee_id=$1 AND status='pending')+(SELECT count(*) FROM corporate_requests WHERE employee_id=$1 AND status='pending'))::int total`,[_req.user!.employeeId])]);const status=attendance.rows[0]?.status;return res.json({stats:{totalEmployees:1,presentToday:status==='present'?1:0,lateToday:status==='late'?1:0,pendingApprovals:pending.rows[0].total},departments:[]})}
   const [employees,attendance,pending,departments]=await Promise.all([
     db.query(`SELECT count(*)::int total FROM employees WHERE employment_status='active'`),
     db.query(`SELECT count(*) FILTER(WHERE status='present')::int present,count(*) FILTER(WHERE status='late')::int late,count(*)::int recorded FROM attendance WHERE work_date=CURRENT_DATE`),
-    db.query(`SELECT count(*)::int total FROM requests WHERE status='pending'`),
-    db.query(`SELECT d.name,count(e.id)::int employees,count(a.id) FILTER(WHERE a.status IN ('present','late'))::int present FROM departments d LEFT JOIN employees e ON e.department_id=d.id LEFT JOIN attendance a ON a.employee_id=e.id AND a.work_date=CURRENT_DATE GROUP BY d.id,d.name ORDER BY d.name`)
+    db.query(`SELECT ((SELECT count(*) FROM requests WHERE status='pending')+(SELECT count(*) FROM corporate_requests c JOIN employees e ON e.id=c.employee_id JOIN approval_workflow_steps aws ON aws.company_id=e.company_id AND aws.request_type=c.request_type AND aws.step_order=c.current_step WHERE c.status='pending' AND aws.approver_user_id=$1))::int total`,[_req.user!.id]),
+    db.query(`SELECT min(trim(d.name)) AS department_name,count(DISTINCT e.id)::int employees,count(DISTINCT a.employee_id) FILTER(WHERE a.status IN ('present','late'))::int present FROM employees e JOIN departments d ON d.id=e.department_id LEFT JOIN attendance a ON a.employee_id=e.id AND a.work_date=CURRENT_DATE WHERE e.employment_status='active' AND e.employee_no NOT LIKE 'EMP-%' AND nullif(trim(d.name),'') IS NOT NULL GROUP BY lower(trim(d.name)) ORDER BY min(trim(d.name))`)
   ])
   const total=employees.rows[0].total
-  res.json({stats:{totalEmployees:total,presentToday:attendance.rows[0].present,lateToday:attendance.rows[0].late,pendingApprovals:pending.rows[0].total},departments:departments.rows.map(d=>({...d,rate:d.employees?Math.round(d.present/d.employees*100):0}))})
+  res.json({stats:{totalEmployees:total,presentToday:attendance.rows[0].present,lateToday:attendance.rows[0].late,pendingApprovals:pending.rows[0].total},departments:departments.rows.map(d=>({name:d.department_name,employees:d.employees,present:d.present,rate:d.employees?Math.round(d.present/d.employees*100):0}))})
 }))
 
 app.get('/api/employees', auth, asyncRoute(async (req,res) => {
@@ -183,6 +184,25 @@ app.get('/api/requests', auth, asyncRoute(async (req,res) => {
   res.json(result.rows)
 }))
 
+app.get('/api/approvals/all',auth,asyncRoute(async(req,res)=>{
+  const privileged=['admin','hr'].includes(req.user!.role)
+  const result=await db.query(`
+    SELECT r.id,'hr'::text source,r.request_type,r.title,r.reason description,r.status,r.created_at,
+      e.first_name,e.last_name,e.employee_no,d.name employee_department,NULL::text reference_no,NULL::numeric amount,NULL::text currency
+    FROM requests r JOIN employees e ON e.id=r.employee_id
+    LEFT JOIN departments d ON d.id=e.department_id
+    WHERE r.status='pending' AND ($1::boolean OR r.current_approver_id=$2)
+    UNION ALL
+    SELECT c.id,'corporate'::text source,c.request_type,c.purpose title,c.purpose description,c.status,c.created_at,
+      e.first_name,e.last_name,e.employee_no,d.name employee_department,c.reference_no,c.amount,c.currency
+    FROM corporate_requests c JOIN employees e ON e.id=c.employee_id
+    LEFT JOIN departments d ON d.id=e.department_id
+    LEFT JOIN approval_workflow_steps aws ON aws.company_id=e.company_id AND aws.request_type=c.request_type AND aws.step_order=c.current_step
+    WHERE c.status='pending' AND aws.approver_user_id=$2
+    ORDER BY created_at DESC`,[privileged,req.user!.id])
+  res.json(result.rows)
+}))
+
 app.get('/api/my-requests',auth,asyncRoute(async(req,res)=>{
   const result=await db.query(`
     SELECT r.id,r.id::text request_id,r.request_type,r.title,r.reason description,CASE WHEN r.status='pending' THEN 'pending with '||COALESCE(NULLIF(trim(ae.first_name||' '||ae.last_name),''),au.username,'Unassigned approver') ELSE r.status END status,r.created_at,e.first_name,e.last_name,e.employee_no,d.name department,e.organization business_units,NULL::text payee,NULL::numeric amount,NULL::text currency,r.payload details,'hr' source
@@ -227,6 +247,19 @@ app.get('/api/announcements', auth, permit('Announcements'),asyncRoute(async (_r
   res.json(result.rows)
 }))
 
+app.get('/api/dashboard/announcements',auth,asyncRoute(async(req,res)=>{
+  const company=(await db.query('SELECT company_id FROM employees WHERE id=$1',[req.user!.employeeId])).rows[0]
+  const result=await db.query(`SELECT a.id,a.title,a.body,a.published_at,COALESCE((SELECT json_agg(json_build_object('id',aa.id,'name',aa.original_name,'mimeType',aa.mime_type,'size',aa.file_size) ORDER BY aa.created_at) FROM announcement_attachments aa WHERE aa.announcement_id=a.id),'[]') attachments FROM announcements a WHERE a.company_id=$1 AND a.published_at IS NOT NULL ORDER BY a.published_at DESC LIMIT 4`,[company.company_id])
+  res.json(result.rows)
+}))
+
+app.get('/api/dashboard/announcements/:id/attachments/:attachmentId',auth,asyncRoute(async(req,res)=>{
+  const company=(await db.query('SELECT company_id FROM employees WHERE id=$1',[req.user!.employeeId])).rows[0]
+  const file=(await db.query(`SELECT aa.* FROM announcement_attachments aa JOIN announcements a ON a.id=aa.announcement_id WHERE aa.id=$1 AND aa.announcement_id=$2 AND a.company_id=$3 AND a.published_at IS NOT NULL`,[req.params.attachmentId,req.params.id,company.company_id])).rows[0]
+  if(!file)return res.status(404).json({error:'Attachment not found'})
+  res.type(file.mime_type);res.setHeader('Content-Disposition',`inline; filename*=UTF-8''${encodeURIComponent(file.original_name)}`);res.sendFile(join(uploadDirectory,file.stored_name))
+}))
+
 app.post('/api/announcements', auth,permit('Announcements'),asyncRoute(async (req,res) => {
   if(!['admin','hr'].includes(req.user!.role))return res.status(403).json({error:'HR or admin access required'})
   const input=z.object({title:z.string().min(3).max(200),body:z.string().min(3).max(10000),publish:z.boolean().default(true)}).parse(req.body)
@@ -246,13 +279,28 @@ app.get('/api/reports/summary', auth, asyncRoute(async (_req,res) => {
   res.json(result.rows[0])
 }))
 
+app.get('/api/reports/payment-requests', auth, asyncRoute(async (req,res) => {
+  const company=(await db.query('SELECT company_id FROM employees WHERE id=$1',[req.user!.employeeId])).rows[0]
+  if(!company)return res.status(404).json({error:'Employee company was not found'})
+  const result=await db.query(`SELECT c.id,c.reference_no,c.created_at submission_date,e.employee_no,trim(e.first_name||' '||e.last_name) requestor_name,d.name department,
+    COALESCE(c.details->>'businessUnit',e.project_location,'') business_unit,COALESCE(c.details->>'paymentType','') payment_type,
+    COALESCE(c.details->>'paymentMethod','') payment_method,c.payee pay_to,c.currency,c.amount,c.purpose description,c.status,c.current_step,c.approved_at,c.updated_at,
+    COALESCE(NULLIF(trim(pe.first_name||' '||pe.last_name),''),pu.username) pending_with
+    FROM corporate_requests c JOIN employees e ON e.id=c.employee_id LEFT JOIN departments d ON d.id=e.department_id
+    LEFT JOIN approval_workflow_steps aws ON aws.company_id=e.company_id AND aws.request_type=c.request_type AND aws.step_order=c.current_step AND c.status='pending'
+    LEFT JOIN users pu ON pu.id=aws.approver_user_id LEFT JOIN employees pe ON pe.id=pu.employee_id
+    WHERE e.company_id=$1 AND c.request_type='payment' ORDER BY c.created_at DESC`,[company.company_id])
+  res.json(result.rows)
+}))
+
 app.get('/api/reports/export', auth, asyncRoute(async (req,res) => {
   const type=typeof req.query.type==='string'?req.query.type:'attendance'
   const queries:Record<string,string>={
     attendance:`SELECT a.work_date,e.employee_no,trim(e.first_name||' '||e.last_name) employee_name,d.name department,a.check_in,a.check_out,a.status,a.source FROM attendance a JOIN employees e ON e.id=a.employee_id LEFT JOIN departments d ON d.id=e.department_id ORDER BY a.work_date DESC,e.employee_no`,
     leave:`SELECT e.employee_no,trim(e.first_name||' '||e.last_name) employee_name,d.name department,r.title,r.reason,r.start_at,r.end_at,r.status,r.created_at submitted_at FROM requests r JOIN employees e ON e.id=r.employee_id LEFT JOIN departments d ON d.id=e.department_id WHERE r.request_type='leave' ORDER BY r.created_at DESC`,
     overtime:`SELECT e.employee_no,trim(e.first_name||' '||e.last_name) employee_name,d.name department,r.title,r.reason,r.start_at,r.end_at,r.status,r.created_at submitted_at FROM requests r JOIN employees e ON e.id=r.employee_id LEFT JOIN departments d ON d.id=e.department_id WHERE r.request_type='overtime' ORDER BY r.created_at DESC`,
-    approvals:`SELECT e.employee_no,trim(e.first_name||' '||e.last_name) employee_name,r.request_type,r.title,r.status,r.created_at submitted_at,r.updated_at last_updated FROM requests r JOIN employees e ON e.id=r.employee_id ORDER BY r.created_at DESC`
+    approvals:`SELECT e.employee_no,trim(e.first_name||' '||e.last_name) employee_name,r.request_type,r.title,r.status,r.created_at submitted_at,r.updated_at last_updated FROM requests r JOIN employees e ON e.id=r.employee_id ORDER BY r.created_at DESC`,
+    payment_requests:`SELECT c.reference_no request_id,c.created_at submission_date,e.employee_no,trim(e.first_name||' '||e.last_name) requestor_name,d.name department,COALESCE(c.details->>'businessUnit',e.project_location,'') business_unit,COALESCE(c.details->>'paymentType','') payment_type,COALESCE(c.details->>'paymentMethod','') payment_method,c.payee pay_to,c.currency,c.amount,c.purpose description,c.status,c.approved_at,c.updated_at FROM corporate_requests c JOIN employees e ON e.id=c.employee_id LEFT JOIN departments d ON d.id=e.department_id WHERE c.request_type='payment' AND e.company_id=(SELECT company_id FROM employees WHERE id='${req.user!.employeeId}') ORDER BY c.created_at DESC`
   }
   if(!queries[type])return res.status(400).json({error:'Unknown report type'})
   const result=await db.query(queries[type]);const workbook=new ExcelJS.Workbook();workbook.creator='Company Portal';const sheet=workbook.addWorksheet(`${type[0].toUpperCase()}${type.slice(1)} Report`,{views:[{state:'frozen',ySplit:1}]});const keys=result.fields.map(field=>field.name);sheet.columns=keys.map(key=>({key,header:key.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase()),width:Math.max(16,Math.min(32,key.length+8))}));result.rows.forEach(row=>sheet.addRow(row));sheet.getRow(1).eachCell(cell=>{cell.font={bold:true,color:{argb:'FFFFFFFF'}};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF6554DC'}}});sheet.autoFilter=`A1:${sheet.getColumn(keys.length).letter}1`;const buffer=await workbook.xlsx.writeBuffer();res.setHeader('Content-Disposition',`attachment; filename="${type}-report-${new Date().toISOString().slice(0,10)}.xlsx"`);res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').send(Buffer.from(buffer))
@@ -311,7 +359,11 @@ app.patch('/api/notifications/read-all',auth,permit('Notification'),asyncRoute(a
 }))
 
 app.get('/api/me/navigation',auth,asyncRoute(async(req,res)=>{
-  const result=await db.query(`SELECT rp.menu_key FROM role_permissions rp JOIN employees e ON e.company_id=rp.company_id WHERE e.id=$1 AND rp.role=$2 AND rp.allowed=true ORDER BY rp.menu_key`,[req.user!.employeeId,req.user!.role]);res.json({role:req.user!.role,menus:req.user!.role==='admin'?['*']:result.rows.map(row=>row.menu_key)})
+  const [result,workflowApprover]=await Promise.all([
+    db.query(`SELECT rp.menu_key FROM role_permissions rp JOIN employees e ON e.company_id=rp.company_id WHERE e.id=$1 AND rp.role=$2 AND rp.allowed=true ORDER BY rp.menu_key`,[req.user!.employeeId,req.user!.role]),
+    db.query(`SELECT 1 FROM approval_workflow_steps WHERE approver_user_id=$1 LIMIT 1`,[req.user!.id]),
+  ]);
+  res.json({role:req.user!.role,menus:req.user!.role==='admin'?['*']:result.rows.map(row=>row.menu_key),isWorkflowApprover:(workflowApprover.rowCount??0)>0})
 }))
 
 app.get('/api/permissions',auth,permit('Permission'),asyncRoute(async(req,res)=>{
@@ -366,7 +418,7 @@ app.get('/api/corporate-requests/:id/attachments/:attachmentId',auth,asyncRoute(
   const access=(await db.query(`SELECT c.id,e.company_id,c.employee_id,c.request_type FROM corporate_requests c JOIN employees e ON e.id=c.employee_id WHERE c.id=$1`,[req.params.id])).rows[0];if(!access)return res.status(404).json({error:'Request not found'});const allowed=access.employee_id===req.user!.employeeId||(await db.query(`SELECT 1 FROM approval_workflow_steps WHERE company_id=$1 AND request_type=$2 AND approver_user_id=$3 LIMIT 1`,[access.company_id,access.request_type,req.user!.id])).rowCount;if(!allowed)return res.status(403).json({error:'Attachment access denied'});const file=(await db.query(`SELECT * FROM corporate_request_attachments WHERE id=$1 AND corporate_request_id=$2`,[req.params.attachmentId,req.params.id])).rows[0];if(!file)return res.status(404).json({error:'Attachment not found'});res.type(file.mime_type);res.setHeader('Content-Disposition',`inline; filename*=UTF-8''${encodeURIComponent(file.original_name)}`);res.sendFile(join(uploadDirectory,file.stored_name))
 }))
 
-app.post('/api/corporate-requests',auth,permit('Corporate'),attachmentUpload.array('attachments',5),asyncRoute(async(req,res)=>{
+app.post('/api/corporate-requests',auth,permitCorporateRequest,attachmentUpload.array('attachments',5),asyncRoute(async(req,res)=>{
   const rawDetails=typeof req.body.details==='string'?JSON.parse(req.body.details):req.body.details;const input=z.object({requestType:z.enum(['payment','advance_clearance']),payee:z.string().max(180).optional().default(''),purpose:z.string().min(3).max(3000),amount:z.coerce.number().nonnegative(),currency:z.enum(['USD','EURO','CNY','MMK','THB']).default('MMK'),details:z.record(z.string(),z.unknown()).optional()}).parse({...req.body,details:rawDetails});const company=(await db.query('SELECT company_id FROM employees WHERE id=$1',[req.user!.employeeId])).rows[0];const configuredApprover=(await db.query(`SELECT approver_user_id id FROM approval_workflow_steps WHERE company_id=$1 AND request_type=$2 AND step_order=1`,[company.company_id,input.requestType])).rows[0];const fallbackApprover=(await db.query(`SELECT id FROM users WHERE role IN ('manager','approver','hr','admin') AND is_active=true ORDER BY CASE role WHEN 'manager' THEN 1 WHEN 'approver' THEN 2 WHEN 'hr' THEN 3 ELSE 4 END LIMIT 1`)).rows[0];const approver=configuredApprover?.id?configuredApprover:fallbackApprover;const prefix=input.requestType==='payment'?'PAY':'ADV';const reference=`${prefix}-${new Date().getFullYear()}-${Date.now().toString().slice(-7)}`;const client=await db.connect();try{await client.query('BEGIN');const result=await client.query(`INSERT INTO corporate_requests(employee_id,request_type,reference_no,payee,purpose,amount,currency,details,approver_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,[req.user!.employeeId,input.requestType,reference,input.payee,input.purpose,input.amount,input.currency,input.details??{},approver?.id??null]);for(const file of ((req.files as Express.Multer.File[] | undefined)??[]))await client.query(`INSERT INTO corporate_request_attachments(corporate_request_id,original_name,stored_name,mime_type,file_size) VALUES($1,$2,$3,$4,$5)`,[result.rows[0].id,file.originalname,file.filename,file.mimetype,file.size]);await client.query('COMMIT');res.status(201).json(result.rows[0])}catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
 }))
 
