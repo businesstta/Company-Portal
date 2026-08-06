@@ -1,0 +1,2 @@
+ALTER TABLE vehicles
+  ADD COLUMN IF NOT EXISTS department varchar(180) NOT NULL DEFAULT '';

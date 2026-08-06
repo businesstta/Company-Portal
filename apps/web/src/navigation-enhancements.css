@@ -37,6 +37,8 @@
 @media(max-width:700px){.my-request-detail>.my-request-summary{grid-template-columns:repeat(2,minmax(0,1fr))!important}.my-request-detail .my-request-summary .description{grid-column:span 2!important}}
 @media(max-width:460px){.my-request-detail>.my-request-summary{grid-template-columns:1fr!important}.my-request-detail .my-request-summary .description{grid-column:auto!important}}
 @media print{.my-request-detail>.my-request-summary{grid-template-columns:repeat(3,minmax(0,1fr))!important;overflow:visible!important}.my-request-detail .my-request-summary .description{grid-column:1/-1!important}}
+.approval-detail-summary.payment-summary-standard>div:nth-child(n+14){display:none}
+.approval-detail-summary.payment-summary-standard .wide b{display:block;max-height:150px;overflow:auto;padding:10px 12px;border-radius:9px;background:#f7f8fb;white-space:pre-wrap;overflow-wrap:anywhere}
 
 /* Approval details use the same modal interaction as My Requests. */
 .corporate-approval-layout.detail-open{grid-template-columns:minmax(0,1fr)!important}

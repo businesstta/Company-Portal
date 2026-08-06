@@ -1,0 +1,98 @@
+/* Shared combo-box styling: one quiet chevron and consistent control finish. */
+html select:not([multiple]) {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  padding-right: 38px !important;
+  border-color: #dcd8e8;
+  border-radius: 7px !important;
+  background-color: #fff !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='10' viewBox='0 0 16 10'%3E%3Cpath d='m3 3 5 5 5-5' fill='none' stroke='%236f687d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 14px center !important;
+  background-size: 12px 8px !important;
+  cursor: pointer;
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+
+html select:not([multiple]):hover:not(:disabled) {
+  border-color: #bdb7d2;
+}
+
+html select:not([multiple]):focus,
+html select:not([multiple]):focus-visible {
+  border-color: #6554dc !important;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(101, 84, 220, .1) !important;
+}
+
+html select:not([multiple]):disabled {
+  background-color: #f4f3f7 !important;
+  color: #9791a1;
+  cursor: not-allowed;
+}
+
+select::-ms-expand {
+  display: none;
+}
+
+/* Match the custom approver picker to the shared chevron. */
+.approver-select-trigger {
+  border-color: #dcd8e8 !important;
+  border-radius: 7px !important;
+}
+
+.approver-select-trigger i {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  font-size: 0 !important;
+}
+
+.approver-select-trigger i::before {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid #6f687d;
+  border-bottom: 2px solid #6f687d;
+  content: "";
+  transform: rotate(45deg);
+  transition: transform .16s ease, top .16s ease;
+}
+
+.approver-search-select.open .approver-select-trigger i::before {
+  top: 7px;
+  transform: rotate(225deg);
+}
+
+/* The vehicle search is also a combobox, so give it the same visual cue. */
+.vehicle-picker {
+  position: relative;
+}
+
+.vehicle-picker > input[role="combobox"] {
+  padding-right: 40px;
+  border-color: #dcd8e8;
+  border-radius: 7px;
+}
+
+.vehicle-picker::after {
+  position: absolute;
+  top: 34px;
+  right: 16px;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid #6f687d;
+  border-bottom: 2px solid #6f687d;
+  content: "";
+  pointer-events: none;
+  transform: rotate(45deg);
+  transition: transform .16s ease, top .16s ease;
+}
+
+.vehicle-picker:has(> input[aria-expanded="true"])::after {
+  top: 38px;
+  transform: rotate(225deg);
+}

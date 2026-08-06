@@ -10,3 +10,4 @@
 
 /* Payment form alignment and formatted amount */
 .payment-request-form .form-grid{align-items:start!important}.payment-request-form label{display:flex!important;flex-direction:column!important;justify-content:flex-start!important;align-self:start!important;gap:7px!important;margin:0!important}.payment-request-form input,.payment-request-form select{margin:0!important}.payment-request-form .amount-preview{display:block;min-height:18px;margin:0;color:#6554dc;font-size:10px;font-weight:700;line-height:1.45}.payment-request-form .amount-field>input[type=hidden]{display:none}
+.dynamic-approver-badge{min-height:39px;display:flex;align-items:center;padding:0 12px;border:1px dashed #a99df0;border-radius:8px;background:#f5f2ff;color:#5140c4;font-size:11px;font-weight:800}

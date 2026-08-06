@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "migrate": "tsx src/migrate.ts",
+    "bootstrap-admin": "tsx src/bootstrap-admin.ts",
     "seed": "tsx src/seed.ts",
     "lint": "oxlint src"
   },

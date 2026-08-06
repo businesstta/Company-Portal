@@ -8,6 +8,11 @@ import "./users-roles.css";
 import "./settings-management.css";
 import "./navigation-enhancements.css";
 import "./payment-report-monthly.css";
+import "./vehicle-management.css";
+import "./approval-workflow.css";
+import "./assigned-vehicle.css";
+import FerryManagement from "./FerryManagement";
+import "./select-design.css";
 
 const nav = [
   "Overview",
@@ -38,7 +43,10 @@ const corporateSubmenus = [
   "Stationary Request Form",
   "Vehicle Request Form",
 ];
-const fleetSubmenus = ["Vehicle Management"];
+const fleetSubmenus = ["Vehicle Management (Internal)", "Vehicle Management (Maintenance)", "Ferry Management"];
+const vehicleManagementPages = ["Vehicle Management (Internal)", "Vehicle Management (Maintenance)"];
+const isVehicleManagementPage = (value: string) => vehicleManagementPages.includes(value);
+const vehicleCategoryForPage = (value: string) => value === "Vehicle Management (Maintenance)" ? "maintenance" : "internal";
 const approvalSubmenus:string[]=[];
 const reportGroups = [
   {
@@ -97,6 +105,16 @@ const permissionMenuItems = [
   { key: "My Requests", level: 0 },
 ];
 const API = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
+const vehicleTimeOptions = Array.from({ length: 48 }, (_, index) => {
+  const hour24 = Math.floor(index / 2);
+  const minutes = index % 2 === 0 ? "00" : "30";
+  const hour12 = hour24 % 12 || 12;
+  const suffix = hour24 < 12 ? "AM" : "PM";
+  return {
+    value: `${hour24.toString().padStart(2, "0")}:${minutes}`,
+    label: `${hour12}:${minutes} ${suffix}`,
+  };
+});
 type Dashboard = {
   stats: {
     totalEmployees: number;
@@ -137,6 +155,18 @@ type MasterConfirmation = {
   name: string;
   id?: string;
 };
+type RoleOption = {
+  role_key: string;
+  role_name: string;
+  is_system?: boolean;
+};
+const defaultRoleOptions: RoleOption[] = [
+  { role_key: "admin", role_name: "Admin", is_system: true },
+  { role_key: "hr", role_name: "HR", is_system: true },
+  { role_key: "manager", role_name: "Manager", is_system: true },
+  { role_key: "approver", role_name: "Approver", is_system: true },
+  { role_key: "employee", role_name: "Employee", is_system: true },
+];
 type EmployeeFilters = {
   employeeNo: string;
   name: string;
@@ -156,6 +186,15 @@ type UserFilters = {
   projectLocation: string;
   reportTo: string;
   role: string;
+};
+type VehicleFilters = {
+  vehicleName: string;
+  vehicleType: string;
+  plateNumber: string;
+  department: string;
+  driverName: string;
+  phoneNo: string;
+  status: string;
 };
 type Branding = { iconText: string; title: string; subtitle: string; iconColor: string; logoUrl?: string };
 
@@ -283,6 +322,31 @@ function ConfirmDialog({
     </div>
   );
 }
+
+function VehicleDeleteDialog({
+  count,
+  onCancel,
+  onConfirm,
+}: {
+  count: number;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="confirm-backdrop" onMouseDown={onCancel}>
+      <section className="confirm-dialog vehicle-delete-dialog" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="confirm-icon reject">!</div>
+        <h2>Delete selected vehicles?</h2>
+        <p>Are you sure you want to delete {count} selected vehicle{count > 1 ? "s" : ""}?</p>
+        <div>
+          <button onClick={onCancel}>Cancel</button>
+          <button className="confirm-reject" onClick={onConfirm}>Yes, delete</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function SaveEmployeeDialog({
   name,
   onCancel,
@@ -546,12 +610,108 @@ function requestFormName(type:unknown):string{
   const key=String(type??"").toLowerCase();
   const names:Record<string,string>={
     payment:"Payment Request Form",advance_clearance:"Advance Clearance Request Form",
+    vehicle_request:"Vehicle Request Form",
     leave:"Leave Request Form",overtime:"Overtime Request Form",attendance_correction:"Check In/Out Request Form",
     late_in:"Late In Request Form",early_out:"Early Out Request Form",travelling:"Travelling Request Form",
     material:"Material Request Form",service:"Service Request Form",stationary:"Stationary Request Form",
     vehicle:"Vehicle Request Form",appraisal:"Appraisal Request Form"
   };
   return names[key]??`${key.replaceAll("_"," ").replace(/\b\w/g,letter=>letter.toUpperCase())} Request Form`;
+}
+
+function corporateRequestId(request: Record<string, unknown> | null | undefined, fallbackType = ""): string {
+  const raw = textValue(request?.reference_no ?? request?.request_id ?? request?.id);
+  const requestType = String(request?.request_type ?? request?.requestType ?? fallbackType).toLowerCase();
+  return requestType === "vehicle_request"
+    ? raw.replace(/^[A-Z]+-/, "VRF-")
+    : raw;
+}
+
+function textValue(value: unknown, fallback = "—"): string {
+  const text = String(value ?? "").trim();
+  return text || fallback;
+}
+
+function requestDetails(request: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  const raw = request?.details;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) return raw as Record<string, unknown>;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+function paymentRequestDetailFields(request: Record<string, unknown> | null | undefined) {
+  const details = requestDetails(request);
+  const employeeName = textValue(
+    request?.employee_name ??
+      `${String(request?.first_name ?? "").trim()} ${String(request?.last_name ?? "").trim()}`.trim(),
+  );
+  return [
+    { label: "Employee ID", value: textValue(request?.employee_no ?? request?.employee_id) },
+    { label: "Employee Name", value: employeeName },
+    { label: "Employee Department", value: textValue(request?.employee_department ?? request?.department) },
+    { label: "Business Unit", value: textValue(request?.business_units ?? details.businessUnit) },
+    { label: "Submission Date", value: request?.request_date || request?.created_at ? new Date(String(request.request_date ?? request.created_at)).toLocaleDateString() : "—" },
+    { label: "Request from Department", value: textValue(details.requestFromDepartment ?? request?.request_from_department ?? request?.employee_department ?? request?.department) },
+    { label: "Payment Type", value: textValue(details.paymentType ?? request?.payment_type) },
+    { label: "Payment Method", value: textValue(details.paymentMethod ?? request?.payment_method) },
+    { label: "Pay To", value: textValue(request?.payee ?? request?.pay_to) },
+    { label: "Currency Type", value: textValue(request?.currency ?? request?.currency_type) },
+    { label: "Total Amount", value: request?.amount != null ? Number(request.amount).toLocaleString() : "—" },
+    { label: "Description", value: textValue(request?.purpose ?? request?.description ?? request?.reason ?? request?.title), className: "description" },
+    { label: "Remark", value: textValue(details.remark ?? request?.remark), className: "description" },
+  ];
+}
+
+function vehicleRequestDetailFields(request: Record<string, unknown> | null | undefined) {
+  const details = requestDetails(request);
+  const assigned = ((details.assignedVehicle ?? {}) as Record<string, unknown>) || {};
+  const employeeName = textValue(
+    request?.employee_name ??
+      `${String(request?.first_name ?? "").trim()} ${String(request?.last_name ?? "").trim()}`.trim(),
+  );
+  const storedDate = (value: unknown) => {
+    const raw = String(value ?? "").slice(0, 10);
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return match ? `${match[3]}/${match[2]}/${match[1]}` : textValue(value);
+  };
+  const fields = [
+    { label: "Employee ID", value: textValue(request?.employee_no ?? request?.employee_id) },
+    { label: "Employee Name", value: employeeName },
+    { label: "Employee Department", value: textValue(request?.employee_department ?? request?.department) },
+    { label: "Business Unit", value: textValue(request?.business_units ?? details.businessUnit ?? request?.project_location) },
+    { label: "Submission Date", value: request?.request_date || request?.created_at ? new Date(String(request.request_date ?? request.created_at)).toLocaleDateString() : "—" },
+    { label: "Request From Department", value: textValue(details.requestFromDepartment ?? request?.employee_department ?? request?.department) },
+    { label: "Number of Passengers", value: textValue(details.numberOfPassengers) },
+    { label: "Go", value: storedDate(details.goDate) },
+    { label: "Return", value: storedDate(details.returnDate) },
+    { label: "Out", value: textValue(details.outTime) },
+    { label: "In", value: textValue(details.inTime) },
+    { label: "Activities (Destination)", value: textValue(details.activities ?? request?.purpose), className: "description" },
+    { label: "Requested Vehicle Type", value: textValue(details.requestedVehicleType ?? request?.payee) },
+    { label: "Remark", value: textValue(details.remark), className: "description" },
+  ];
+  if (assigned.id) {
+    fields.push(
+      { label: "Assigned Vehicle", value: textValue(assigned.vehicleName), className: "assigned-vehicle" },
+      { label: "Vehicle Plate Number", value: textValue(assigned.vehiclePlateNumber), className: "assigned-vehicle" },
+      { label: "Driver Name", value: textValue(assigned.driverName), className: "assigned-vehicle" },
+      { label: "Driver Phone Number", value: textValue(assigned.phoneNo), className: "assigned-vehicle" },
+    );
+  }
+  return fields;
+}
+
+function corporateRequestDetailFields(request: Record<string, unknown> | null | undefined) {
+  return String(request?.request_type ?? "") === "vehicle_request"
+    ? vehicleRequestDetailFields(request)
+    : paymentRequestDetailFields(request);
 }
 
 // Keep every rendered portal date consistent, including legacy table cells.
@@ -590,6 +750,14 @@ function DataPage({
     unknown
   > | null>(null);
   const [selectedCorporateRequest, setSelectedCorporateRequest] = useState<Record<string, unknown> | null>(null);
+  const [corporateComment, setCorporateComment] = useState("");
+  const [availableVehicles, setAvailableVehicles] = useState<Record<string, unknown>[]>([]);
+  const [selectedAssignmentVehicleId, setSelectedAssignmentVehicleId] = useState("");
+  const [selectedAssignmentVehicleLabel, setSelectedAssignmentVehicleLabel] = useState("");
+  const [vehicleAssignmentSearch, setVehicleAssignmentSearch] = useState("");
+  const [vehiclePickerOpen, setVehiclePickerOpen] = useState(false);
+  const [assignmentNotice, setAssignmentNotice] = useState("");
+  const [assigningVehicle, setAssigningVehicle] = useState(false);
   const [selectedAnnouncement,setSelectedAnnouncement]=useState<Record<string,unknown>|null>(null);
   const [corporateConfirmation, setCorporateConfirmation] = useState<Confirmation | null>(null);
   const [editingEmployee, setEditingEmployee] = useState(false);
@@ -613,6 +781,9 @@ function DataPage({
   const [userPage, setUserPage] = useState(1);
   const [userPageSize, setUserPageSize] = useState(25);
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+  const [roleOptions, setRoleOptions] = useState<RoleOption[]>(defaultRoleOptions);
+  const [showCreateRole, setShowCreateRole] = useState(false);
+  const [pendingRoleName, setPendingRoleName] = useState("");
   const [permissionDraft, setPermissionDraft] = useState<Record<string, boolean>>({});
   const [permissionDirty, setPermissionDirty] = useState(false);
   const [permissionNotice, setPermissionNotice] = useState("");
@@ -624,10 +795,27 @@ function DataPage({
   const [paymentReportFilters,setPaymentReportFilters]=useState({from:"",to:"",status:"",department:"",search:""});
   const [paymentReportPage, setPaymentReportPage] = useState(1);
   const [paymentReportPageSize, setPaymentReportPageSize] = useState(25);
+  const [vehicleFilters, setVehicleFilters] = useState<VehicleFilters>({
+    vehicleName: "",
+    vehicleType: "",
+    plateNumber: "",
+    department: "",
+    driverName: "",
+    phoneNo: "",
+    status: "",
+  });
+  const [vehiclePage, setVehiclePage] = useState(1);
+  const [vehiclePageSize, setVehiclePageSize] = useState(25);
+  const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>([]);
+  const [showVehicleDeleteConfirmation, setShowVehicleDeleteConfirmation] = useState(false);
+  const [vehicleNotice, setVehicleNotice] = useState("");
+  const [internalVehicles, setInternalVehicles] = useState<Record<string, unknown>[]>([]);
+  const [editingVehicle, setEditingVehicle] = useState<Record<string, unknown> | null>(null);
   const [showPaymentSubmitConfirmation, setShowPaymentSubmitConfirmation] = useState(false);
   const paymentRequestFormRef = useRef<HTMLFormElement | null>(null);
   const paymentSubmitConfirmedRef = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const vehicleFileInput = useRef<HTMLInputElement>(null);
   const requestVersion = useRef(0);
   const requestType: Record<string, string> = {
     Leave: "leave",
@@ -637,6 +825,7 @@ function DataPage({
   const corporateType: Record<string, string> = {
     "Payment Request Form": "payment",
     "Advance Clearance Request Form": "advance_clearance",
+    "Vehicle Request Form": "vehicle_request",
   };
   const approvalType: Record<string, string> = {
     "Leave Approval": "leave",
@@ -679,6 +868,8 @@ function DataPage({
                     ? "profile"
                     : page === "My Requests"
                       ? "my-requests"
+                    : isVehicleManagementPage(page)
+                      ? `vehicles?category=${vehicleCategoryForPage(page)}`
                     : page === "Reports"
                       ? "reports/summary"
                     : page === "Payment Request Report"
@@ -734,6 +925,25 @@ function DataPage({
   const pagedUserRows = page === "Users & Roles"
     ? filteredUserRows.slice((currentUserPage - 1) * userPageSize, currentUserPage * userPageSize)
     : filteredUserRows;
+  const filteredVehicleRows = isVehicleManagementPage(page)
+    ? listRows.filter((row) => {
+        const includes = (value: unknown, search: string) =>
+          String(value ?? "").toLowerCase().includes(search.trim().toLowerCase());
+        const showVehicleStatus = vehicleCategoryForPage(page) === "internal";
+        return includes(row.vehicle_name, vehicleFilters.vehicleName) &&
+          includes(row.vehicle_type, vehicleFilters.vehicleType) &&
+          includes(row.vehicle_plate_number, vehicleFilters.plateNumber) &&
+          (!showVehicleStatus || includes(row.driver_name, vehicleFilters.driverName)) &&
+          (!showVehicleStatus || includes(row.phone_no, vehicleFilters.phoneNo)) &&
+          (showVehicleStatus || includes(row.department, vehicleFilters.department)) &&
+          (!showVehicleStatus || includes(row.status, vehicleFilters.status));
+      })
+    : [];
+  const vehicleTotalPages = Math.max(1, Math.ceil(filteredVehicleRows.length / vehiclePageSize));
+  const currentVehiclePage = Math.min(vehiclePage, vehicleTotalPages);
+  const pagedVehicleRows = isVehicleManagementPage(page)
+    ? filteredVehicleRows.slice((currentVehiclePage - 1) * vehiclePageSize, currentVehiclePage * vehiclePageSize)
+    : filteredVehicleRows;
   const updateUserFilter = (key: keyof UserFilters, value: string) => {
     setUserFilters((current) => ({ ...current, [key]: value }));
     setUserPage(1);
@@ -745,6 +955,10 @@ function DataPage({
   const updateEmployeeFilter = (key: keyof EmployeeFilters, value: string) => {
     setEmployeeFilters((current) => ({ ...current, [key]: value }));
     setEmployeePage(1);
+  };
+  const updateVehicleFilter = (key: keyof VehicleFilters, value: string) => {
+    setVehicleFilters((current) => ({ ...current, [key]: value }));
+    setVehiclePage(1);
   };
   const load = () => {
     if (!endpoint) return;
@@ -769,7 +983,31 @@ function DataPage({
         if (version === requestVersion.current) setLoading(false);
       });
   };
+  const roleLabel = (roleKey: unknown) =>
+    roleOptions.find((item) => item.role_key === String(roleKey))?.role_name ??
+    String(roleKey ?? "")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const loadRoles = useCallback(async () => {
+    if (!token || role !== "admin") return;
+    const response = await fetch(`${API}/roles`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.ok) {
+      const data = await response.json();
+      setRoleOptions(Array.isArray(data) && data.length ? data : defaultRoleOptions);
+    }
+  }, [role, token]);
   useEffect(load, [endpoint, token]);
+  useEffect(() => {
+    if (page === "Users & Roles" || page === "Role Access Control") void loadRoles();
+  }, [loadRoles, page]);
+  useEffect(() => {
+    setSelectedVehicleIds([]);
+    setShowVehicleDeleteConfirmation(false);
+    setVehicleNotice("");
+    setVehiclePage(1);
+  }, [page]);
   useEffect(()=>{if(page!=="Announcements"||!selectedAnnouncementId||!Array.isArray(rows))return;const match=(rows as Record<string,unknown>[]).find(row=>String(row.id)===selectedAnnouncementId);if(match)setSelectedAnnouncement(match)},[page,rows,selectedAnnouncementId]);
   useEffect(() => {
     if (page !== "Role Access Control" || !Array.isArray(rows)) return;
@@ -781,10 +1019,11 @@ function DataPage({
   }, [page, rows]);
   useEffect(() => {
     setShowForm(false);
+    setEditingVehicle(null);
     setImportResult("");
   }, [page]);
   useEffect(() => {
-    if (page === "Employees" || page === "Item Master" || page === "Payment Request Form")
+    if (page === "Employees" || page === "Item Master" || page === "Payment Request Form" || page === "Vehicle Request Form")
       fetch(`${API}/item-master`, {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -792,10 +1031,17 @@ function DataPage({
         .then((data) => setMasterItems(Array.isArray(data) ? data : []));
   }, [page, token]);
   useEffect(() => {
-    if (page !== "Payment Request Form") return;
+    if (page !== "Payment Request Form" && page !== "Vehicle Request Form") return;
     fetch(`${API}/profile`, { headers: { Authorization: `Bearer ${token}` } })
       .then((response) => response.json())
       .then((profile) => setPaymentProfile(profile ?? {}));
+  }, [page, token]);
+  useEffect(() => {
+    if (page !== "Vehicle Request Form") return;
+    fetch(`${API}/vehicles?category=internal`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => response.json())
+      .then((vehicles) => setInternalVehicles(Array.isArray(vehicles) ? vehicles : []))
+      .catch(() => setInternalVehicles([]));
   }, [page, token]);
   useEffect(() => {
     if(page!=="My Requests"||!selectedCorporateRequest)return;
@@ -943,10 +1189,35 @@ function DataPage({
       body: JSON.stringify({ role }),
     });
     setRoleSaveNotice(response.ok
-      ? { type: "success", message: `Role updated to ${role} successfully.` }
+      ? { type: "success", message: `Role updated to ${roleLabel(role)} successfully.` }
       : { type: "error", message: "Unable to update role. Please try again." });
     window.setTimeout(() => setRoleSaveNotice(null), 2600);
     load();
+  };
+  const askCreateRole = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const roleName = String(new FormData(event.currentTarget).get("roleName") ?? "").trim();
+    if (!roleName) return;
+    setPendingRoleName(roleName);
+  };
+  const confirmCreateRole = async () => {
+    const response = await fetch(`${API}/roles`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ roleName: pendingRoleName }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (response.ok) {
+      setRoleSaveNotice({ type: "success", message: `${String(result.role_name ?? pendingRoleName)} role created successfully.` });
+      setShowCreateRole(false);
+      setPendingRoleName("");
+      await loadRoles();
+      if (page === "Role Access Control") load();
+    } else {
+      setRoleSaveNotice({ type: "error", message: String(result.error ?? "Unable to create role. Please try again.") });
+      setPendingRoleName("");
+    }
+    window.setTimeout(() => setRoleSaveNotice(null), 2600);
   };
   const resetUserPassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -995,8 +1266,8 @@ function DataPage({
   const saveBanner = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();const form=new FormData(event.currentTarget);let logoUrl=form.get('removeLogo')==='on'?'':String(form.get('existingLogo')??'');const logo=form.get('logo');if(logo instanceof File&&logo.size){const upload=new FormData();upload.append('logo',logo);const uploadResponse=await fetch(`${API}/branding/logo`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:upload});if(!uploadResponse.ok){setRoleSaveNotice({type:'error',message:(await uploadResponse.json()).error??'Unable to upload company logo.'});return}logoUrl=(await uploadResponse.json()).logoUrl}const branding:Branding={iconText:String(form.get('iconText')??'CP').trim().slice(0,3).toUpperCase(),title:String(form.get('title')??'Company Portal').trim(),subtitle:String(form.get('subtitle')??'People & Operations').trim(),iconColor:String(form.get('iconColor')??'#6d5ce7'),logoUrl};const response=await fetch(`${API}/settings/banner`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(branding)});setRoleSaveNotice(response.ok?{type:'success',message:'Navigation banner saved successfully.'}:{type:'error',message:'Unable to save navigation banner.'});if(response.ok){onBrandingChanged?.(branding);setRows(branding)}window.setTimeout(()=>setRoleSaveNotice(null),2600)
   };
-  const saveApprovalWorkflow = async (event: FormEvent<HTMLFormElement>, requestType: "payment" | "advance_clearance") => {
-    event.preventDefault();const form=new FormData(event.currentTarget);const names=['Department Head Approver','Finance Approver','Cashier'];const steps=names.map((stepName,index)=>({stepOrder:index+1,stepName,approverUserId:String(form.get(`step-${index+1}`)??'')||null}));const response=await fetch(`${API}/approval-setup/${requestType}`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({steps})});setRoleSaveNotice(response.ok?{type:'success',message:`${requestType==='payment'?'Payment Request':'Advance Clearance'} workflow saved successfully.`}:{type:'error',message:'Unable to save approval workflow.'});window.setTimeout(()=>setRoleSaveNotice(null),2600);if(response.ok)load()
+  const saveApprovalWorkflow = async (event: FormEvent<HTMLFormElement>, requestType: "payment" | "advance_clearance" | "vehicle_request", stepNames: string[]) => {
+    event.preventDefault();const form=new FormData(event.currentTarget);const steps=stepNames.map((stepName,index)=>({stepOrder:index+1,stepName,approverUserId:String(form.get(`step-${index+1}`)??'')||null}));const response=await fetch(`${API}/approval-setup/${requestType}`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({steps})});const labels:{[key:string]:string}={payment:'Payment Request',advance_clearance:'Advance Clearance',vehicle_request:'Vehicle Request'};setRoleSaveNotice(response.ok?{type:'success',message:`${labels[requestType]} workflow saved successfully.`}:{type:'error',message:'Unable to save approval workflow.'});window.setTimeout(()=>setRoleSaveNotice(null),2600);if(response.ok)load()
   };
   const downloadExcel = async (path: string, filename: string) => {
     const r = await fetch(`${API}/employees/${path}`, {
@@ -1046,10 +1317,48 @@ function DataPage({
     load();
     if (fileInput.current) fileInput.current.value = "";
   };
+  const downloadVehicleTemplate = async () => {
+    const category = vehicleCategoryForPage(page);
+    const r = await fetch(`${API}/vehicles/template?category=${category}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!r.ok) return alert("Vehicle template download failed");
+    const url = URL.createObjectURL(await r.blob());
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${category}-vehicle-import-template.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  const importVehicles = async (file?: File) => {
+    if (!file) return;
+    const category = vehicleCategoryForPage(page);
+    const form = new FormData();
+    form.append("file", file);
+    form.append("vehicleCategory", category);
+    setImportResult("Importing vehicles…");
+    const r = await fetch(`${API}/vehicles/import?category=${category}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    const result = await r.json().catch(() => ({ error: "Vehicle import failed" }));
+    if (!r.ok) {
+      setImportResult(result.error ?? "Vehicle import failed");
+      return;
+    }
+    const errorDetails = Array.isArray(result.errors)
+      ? result.errors.slice(0, 8).map((error: { row: number; message: string }) => `Row ${error.row}: ${error.message}`).join("\n")
+      : "";
+    setImportResult(`Imported ${result.imported}, updated ${result.updated}, skipped ${result.skipped}${errorDetails ? `\n${errorDetails}` : ""}`);
+    load();
+    if (vehicleFileInput.current) vehicleFileInput.current.value = "";
+  };
   const createCorporate = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const isPayment = page === "Payment Request Form";
-    if (isPayment && !paymentSubmitConfirmedRef.current) {
+    const isVehicleRequest = page === "Vehicle Request Form";
+    if ((isPayment || isVehicleRequest) && !paymentSubmitConfirmedRef.current) {
       paymentRequestFormRef.current = e.currentTarget;
       setShowPaymentSubmitConfirmation(true);
       return;
@@ -1070,12 +1379,33 @@ function DataPage({
         remark: f.get("remark"),
       }));
     }
+    if (isVehicleRequest) {
+      f.set("requestType", "vehicle_request");
+      f.set("purpose", String(f.get("activities") ?? ""));
+      f.set("payee", String(f.get("requestedVehicleType") ?? "Any"));
+      f.set("amount", "0");
+      f.set("currency", "MMK");
+      f.set("details", JSON.stringify({
+        numberOfPassengers: f.get("numberOfPassengers"),
+        goDate: f.get("goDate"),
+        returnDate: f.get("returnDate"),
+        outTime: f.get("outTime"),
+        inTime: f.get("inTime"),
+        activities: f.get("activities"),
+        requestedVehicleType: f.get("requestedVehicleType"),
+        remark: f.get("remark"),
+        requesterName: `${String(paymentProfile.first_name ?? "")} ${String(paymentProfile.last_name ?? "")}`.trim(),
+        employeeNo: paymentProfile.employee_no,
+        department: paymentProfile.department,
+      }));
+    }
+    const usesMultipart = isPayment || isVehicleRequest;
     const r = await fetch(`${API}/corporate-requests?type=${isPayment?'payment':corporateType[page]}`, {
       method: "POST",
-      headers: isPayment ? { Authorization: `Bearer ${token}` } : {
+      headers: usesMultipart ? { Authorization: `Bearer ${token}` } : {
         Authorization: `Bearer ${token}`, "Content-Type": "application/json",
       },
-      body: isPayment ? f : JSON.stringify({
+      body: usesMultipart ? f : JSON.stringify({
         requestType: corporateType[page],
         payee: f.get("payee"),
         purpose: f.get("purpose"),
@@ -1088,9 +1418,86 @@ function DataPage({
       load();
     } else alert((await r.json()).error ?? "Unable to submit request");
   };
+  const saveVehicle = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const vehicleCategory = vehicleCategoryForPage(page);
+    const body = {
+      vehicleName: String(form.get("vehicleName") ?? "").trim(),
+      vehicleType: String(form.get("vehicleType") ?? "").trim(),
+      vehiclePlateNumber: String(form.get("vehiclePlateNumber") ?? "").trim(),
+      department: vehicleCategory === "maintenance" ? String(form.get("department") ?? "").trim() : "",
+      driverName: vehicleCategory === "internal" ? String(form.get("driverName") ?? "").trim() : "",
+      phoneNo: vehicleCategory === "internal" ? String(form.get("phoneNo") ?? "").trim() : "",
+      status: vehicleCategory === "internal" ? String(form.get("status") ?? "Free") : "Free",
+      vehicleCategory,
+    };
+    const response = await fetch(
+      `${API}/vehicles${editingVehicle ? `/${editingVehicle.id}` : ""}`,
+      {
+        method: editingVehicle ? "PUT" : "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({ error: "Unable to save vehicle" }));
+      alert(payload.error ?? "Unable to save vehicle");
+      return;
+    }
+    setShowForm(false);
+    setEditingVehicle(null);
+    load();
+  };
+  const deleteSelectedVehicles = async () => {
+    const category = vehicleCategoryForPage(page);
+    const response = await fetch(`${API}/vehicles`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ ids: selectedVehicleIds, vehicleCategory: category }),
+    });
+    const payload = await response.json().catch(() => ({ error: "Unable to delete vehicles" }));
+    setShowVehicleDeleteConfirmation(false);
+    if (!response.ok) {
+      alert(payload.error ?? "Unable to delete vehicles");
+      return;
+    }
+    setSelectedVehicleIds([]);
+    setVehicleNotice(`${payload.deleted ?? selectedVehicleIds.length} vehicle${Number(payload.deleted ?? selectedVehicleIds.length) > 1 ? "s" : ""} deleted successfully.`);
+    load();
+  };
   const selectCorporateRequest = async (id: unknown) => {
+    setCorporateComment("");
+    setAssignmentNotice("");
+    setAvailableVehicles([]);
+    setSelectedAssignmentVehicleId("");
+    setSelectedAssignmentVehicleLabel("");
+    setVehicleAssignmentSearch("");
+    setVehiclePickerOpen(false);
     const response = await fetch(`${API}/corporate-requests/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-    if (response.ok) setSelectedCorporateRequest(await response.json());
+    if (!response.ok) return;
+    const payload = await response.json();
+    setSelectedCorporateRequest(payload);
+    const request = (payload.request ?? {}) as Record<string, unknown>;
+    const details = (request.details ?? {}) as Record<string, unknown>;
+    const assignedVehicle = (details.assignedVehicle ?? {}) as Record<string, unknown>;
+    setSelectedAssignmentVehicleId(String(assignedVehicle.id ?? ""));
+    setSelectedAssignmentVehicleLabel(
+      [assignedVehicle.vehiclePlateNumber, assignedVehicle.vehicleName]
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+        .join(" · "),
+    );
+    if (payload.canAssignVehicle) {
+      const vehiclesResponse = await fetch(`${API}/corporate-requests/${id}/available-vehicles`, { headers: { Authorization: `Bearer ${token}` } });
+      if (vehiclesResponse.ok) setAvailableVehicles(await vehiclesResponse.json());
+    }
   };
   const selectMyRequest = async (row: Record<string,unknown>) => {
     if (row.source === 'corporate') return selectCorporateRequest(row.id);
@@ -1098,10 +1505,16 @@ function DataPage({
   };
   const actCorporateRequest = async () => {
     if (!corporateConfirmation) return;
-    const response=await fetch(`${API}/corporate-requests/${corporateConfirmation.id}/action`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({action:corporateConfirmation.action})});
+    const response=await fetch(`${API}/corporate-requests/${corporateConfirmation.id}/action`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({action:corporateConfirmation.action,comment:corporateComment.trim()||undefined})});
     if(response.ok){
       setCorporateConfirmation(null);
       setSelectedCorporateRequest(null);
+      setCorporateComment("");
+      setAvailableVehicles([]);
+      setSelectedAssignmentVehicleId("");
+      setSelectedAssignmentVehicleLabel("");
+      setVehicleAssignmentSearch("");
+      setVehiclePickerOpen(false);
       await load();
       onNotificationsChanged?.();
       onRequestsChanged?.();
@@ -1110,6 +1523,34 @@ function DataPage({
       const payload=await response.json().catch(()=>({error:'Unable to update request'}));
       alert(payload.error??'Unable to update request')
     }
+  };
+  const assignVehicleToRequest = async () => {
+    const detail = selectedCorporateRequest as { request?: Record<string, unknown> } | null;
+    const requestId = String(detail?.request?.id ?? "");
+    if (!requestId || !selectedAssignmentVehicleId) {
+      setAssignmentNotice("Please select a free vehicle.");
+      return;
+    }
+    setAssigningVehicle(true);
+    setAssignmentNotice("");
+    const response = await fetch(`${API}/corporate-requests/${requestId}/assign-vehicle`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ vehicleId: selectedAssignmentVehicleId }),
+    });
+    const payload = await response.json().catch(() => ({ error: "Unable to assign vehicle" }));
+    if (!response.ok) {
+      setAssignmentNotice(payload.error ?? "Unable to assign vehicle");
+      setAssigningVehicle(false);
+      return;
+    }
+    await selectCorporateRequest(requestId);
+    setVehiclePickerOpen(false);
+    setAssignmentNotice("Vehicle assigned successfully.");
+    await load();
+    onNotificationsChanged?.();
+    onRequestsChanged?.();
+    setAssigningVehicle(false);
   };
   const openCorporateAttachment = async (requestId: unknown, attachment: Record<string,unknown>) => {
     const response=await fetch(`${API}/corporate-requests/${requestId}/attachments/${attachment.id}`,{headers:{Authorization:`Bearer ${token}`}});if(!response.ok)return alert('Unable to open attachment');const url=URL.createObjectURL(await response.blob());window.open(url,'_blank','noopener,noreferrer');window.setTimeout(()=>URL.revokeObjectURL(url),60000)
@@ -1368,6 +1809,7 @@ function DataPage({
       </label>
     );
   };
+  if (page === "Ferry Management") return <FerryManagement token={token} />;
   if (!endpoint)
     return (
       <div className="empty-page">
@@ -1376,26 +1818,172 @@ function DataPage({
         <p>This module is next in the implementation queue.</p>
       </div>
     );
+  if (isVehicleManagementPage(page)) {
+    const closeVehicleForm = () => {
+      setShowForm(false);
+      setEditingVehicle(null);
+    };
+    const showVehicleStatus = vehicleCategoryForPage(page) === "internal";
+    const visibleVehicleIds = pagedVehicleRows.map((vehicle) => String(vehicle.id)).filter(Boolean);
+    const allVisibleVehiclesSelected = visibleVehicleIds.length > 0 && visibleVehicleIds.every((id) => selectedVehicleIds.includes(id));
+    const toggleVehicleSelection = (id: string, checked: boolean) =>
+      setSelectedVehicleIds((current) => checked ? Array.from(new Set([...current, id])) : current.filter((value) => value !== id));
+    const toggleAllVisibleVehicles = (checked: boolean) =>
+      setSelectedVehicleIds((current) => checked ? Array.from(new Set([...current, ...visibleVehicleIds])) : current.filter((id) => !visibleVehicleIds.includes(id)));
+    return (
+      <div className={`vehicle-management-page${showForm || editingVehicle ? " has-form" : ""}`}>
+        <div className="page-title">
+          <div>
+            <p>FLEET MANAGEMENT</p>
+            <h1>{page}</h1>
+            <span>Add, edit and search company vehicle records.</span>
+          </div>
+          <div className="vehicle-page-actions">
+            <button type="button" onClick={downloadVehicleTemplate}>⇩ Excel template</button>
+            <button type="button" onClick={() => vehicleFileInput.current?.click()}>⇧ Import Excel</button>
+            <button className="primary" onClick={() => { setEditingVehicle(null); setShowForm(true); }}>
+              + New vehicle
+            </button>
+            <input ref={vehicleFileInput} type="file" accept=".xlsx" hidden onChange={(e) => importVehicles(e.target.files?.[0])} />
+          </div>
+        </div>
+        {importResult && (
+          <div className={`import-result ${importResult.includes("failed") || importResult.includes("Missing") || importResult.includes("Row ") ? "error" : ""}`}>
+            {importResult}
+            <button onClick={() => setImportResult("")}>×</button>
+          </div>
+        )}
+        {vehicleNotice && (
+          <div className="import-result vehicle-success-notice">
+            {vehicleNotice}
+            <button onClick={() => setVehicleNotice("")}>Ã—</button>
+          </div>
+        )}
+        {(showForm || editingVehicle) && (
+          <form className="employee-form vehicle-form" onSubmit={saveVehicle}>
+            <div className="vehicle-form-heading">
+              <div>
+                <p>VEHICLE RECORD</p>
+                <h2>{editingVehicle ? "Edit vehicle" : "New vehicle"}</h2>
+                <span>Complete the vehicle information used by Fleet Management.</span>
+              </div>
+              <button type="button" onClick={closeVehicleForm}>×</button>
+            </div>
+            <div className="form-grid">
+              <label>Vehicle Name *<input name="vehicleName" defaultValue={String(editingVehicle?.vehicle_name ?? "")} required /></label>
+              <label>Vehicle Type<input name="vehicleType" defaultValue={String(editingVehicle?.vehicle_type ?? "")} /></label>
+              <label>Vehicle Plate Number *<input name="vehiclePlateNumber" defaultValue={String(editingVehicle?.vehicle_plate_number ?? "")} required /></label>
+              {showVehicleStatus ? <>
+                <label>Driver Name<input name="driverName" defaultValue={String(editingVehicle?.driver_name ?? "")} /></label>
+                <label>Phone No<input name="phoneNo" defaultValue={String(editingVehicle?.phone_no ?? "")} /></label>
+                <label className="vehicle-status-field">Status<select name="status" defaultValue={String(editingVehicle?.status ?? "Free")}><option>Free</option><option>Busy</option></select></label>
+              </> : <label>Department<input name="department" defaultValue={String(editingVehicle?.department ?? "")} /></label>}
+            </div>
+            <div className="form-footer">
+              <button type="button" onClick={closeVehicleForm}>Cancel</button>
+              <button className="primary">{editingVehicle ? "Save changes" : "Save vehicle"}</button>
+            </div>
+          </form>
+        )}
+        <section className="employee-filter-card vehicle-filter-card">
+          <div className="employee-filter-heading">
+            <div><h2>Filter vehicles</h2><p>Search fleet records by vehicle, plate number{showVehicleStatus ? ", driver or phone" : " or department"}.</p></div>
+            <button type="button" onClick={() => { setVehicleFilters({ vehicleName: "", vehicleType: "", plateNumber: "", department: "", driverName: "", phoneNo: "", status: "" }); setVehiclePage(1); }}>Clear filters</button>
+          </div>
+          <div className="employee-filter-grid vehicle-filter-grid">
+            <label>Vehicle Name<input value={vehicleFilters.vehicleName} onChange={(e) => updateVehicleFilter("vehicleName", e.target.value)} /></label>
+            <label>Vehicle Type<input value={vehicleFilters.vehicleType} onChange={(e) => updateVehicleFilter("vehicleType", e.target.value)} /></label>
+            <label>Vehicle Plate Number<input value={vehicleFilters.plateNumber} onChange={(e) => updateVehicleFilter("plateNumber", e.target.value)} /></label>
+            {showVehicleStatus ? <>
+              <label>Driver Name<input value={vehicleFilters.driverName} onChange={(e) => updateVehicleFilter("driverName", e.target.value)} /></label>
+              <label>Phone No<input value={vehicleFilters.phoneNo} onChange={(e) => updateVehicleFilter("phoneNo", e.target.value)} /></label>
+              <label className="vehicle-status-field">Status<select value={vehicleFilters.status} onChange={(e) => updateVehicleFilter("status", e.target.value)}><option value="">All statuses</option><option>Free</option><option>Busy</option></select></label>
+            </> : <label>Department<input value={vehicleFilters.department} onChange={(e) => updateVehicleFilter("department", e.target.value)} /></label>}
+          </div>
+        </section>
+        <section className="data-card vehicle-list-card">
+          {selectedVehicleIds.length > 0 && (
+            <div className="vehicle-bulk-toolbar">
+              <span>{selectedVehicleIds.length} selected</span>
+              <button type="button" onClick={() => setSelectedVehicleIds([])}>Clear selection</button>
+              <button type="button" className="danger" onClick={() => setShowVehicleDeleteConfirmation(true)}>Delete selected</button>
+            </div>
+          )}
+          {loading ? (
+            <div className="loading">Loading vehicle records…</div>
+          ) : (
+            <table>
+              <thead><tr><th className="vehicle-select-cell"><input aria-label="Select all vehicles" type="checkbox" checked={allVisibleVehiclesSelected} onChange={(event) => toggleAllVisibleVehicles(event.target.checked)} /></th><th>Vehicle Name</th><th>Vehicle Type</th><th>Vehicle Plate Number</th>{showVehicleStatus ? <><th>Driver Name</th><th>Phone No</th><th>Status</th></> : <th>Department</th>}<th>Action</th></tr></thead>
+              <tbody>
+                {pagedVehicleRows.map((vehicle, index) => (
+                  <tr key={String(vehicle.id ?? index)}>
+                    <td className="vehicle-select-cell"><input aria-label={`Select ${String(vehicle.vehicle_name ?? "vehicle")}`} type="checkbox" checked={selectedVehicleIds.includes(String(vehicle.id))} onChange={(event) => toggleVehicleSelection(String(vehicle.id), event.target.checked)} /></td>
+                    <td><b>{String(vehicle.vehicle_name ?? "—")}</b></td>
+                    <td>{String(vehicle.vehicle_type ?? "") || "—"}</td>
+                    <td>{String(vehicle.vehicle_plate_number ?? "—")}</td>
+                    {showVehicleStatus ? <>
+                      <td>{String(vehicle.driver_name ?? "") || "—"}</td>
+                      <td>{String(vehicle.phone_no ?? "") || "—"}</td>
+                      <td><span className={`vehicle-status ${String(vehicle.status ?? "Free").toLowerCase()}`}>{String(vehicle.status ?? "Free")}</span></td>
+                    </> : <td>{String(vehicle.department ?? "") || "—"}</td>}
+                    <td><button type="button" className="vehicle-edit-button" onClick={() => { setEditingVehicle(vehicle); setShowForm(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Edit</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {!loading && filteredVehicleRows.length === 0 && <div className="loading">No vehicle records match the selected filters.</div>}
+          {!loading && filteredVehicleRows.length > 0 && (
+            <div className="employee-pagination">
+              <div>
+                Showing {(currentVehiclePage - 1) * vehiclePageSize + 1}–{Math.min(currentVehiclePage * vehiclePageSize, filteredVehicleRows.length)} of {filteredVehicleRows.length} vehicles
+              </div>
+              <div className="pagination-controls">
+                <label>
+                  Rows
+                  <select value={vehiclePageSize} onChange={(event) => { setVehiclePageSize(Number(event.target.value)); setVehiclePage(1); }}>
+                    <option value="10">10</option><option value="25">25</option><option value="50">50</option><option value="100">100</option>
+                  </select>
+                </label>
+                <button type="button" disabled={currentVehiclePage === 1} onClick={() => setVehiclePage((value) => Math.max(1, value - 1))}>Previous</button>
+                <span>Page</span>
+                <input aria-label="Vehicle page number" type="number" min="1" max={vehicleTotalPages} value={currentVehiclePage} onChange={(event) => setVehiclePage(Math.min(vehicleTotalPages, Math.max(1, Number(event.target.value) || 1)))} />
+                <span>of {vehicleTotalPages}</span>
+                <button type="button" disabled={currentVehiclePage === vehicleTotalPages} onClick={() => setVehiclePage((value) => Math.min(vehicleTotalPages, value + 1))}>Next</button>
+              </div>
+            </div>
+          )}
+        </section>
+        {showVehicleDeleteConfirmation && <VehicleDeleteDialog count={selectedVehicleIds.length} onCancel={() => setShowVehicleDeleteConfirmation(false)} onConfirm={deleteSelectedVehicles} />}
+      </div>
+    );
+  }
   if(page==="My Requests"){
-    const detail=selectedCorporateRequest as {request?:Record<string,unknown>;steps?:(Record<string,unknown>&{acted_at?:string|null})[];attachments?:Record<string,unknown>[]} | null;const request=detail?.request;const steps=(detail?.steps??[]).map(step=>String(request?.status)==='rejected'&&!step.action&&Number(step.step_order)>Number(request?.current_step)?{...step,action:'Process Terminated'}:step);const details=(request?.details??{}) as Record<string,unknown>;
-    return <><div className="page-title"><div><p>REQUEST HISTORY</p><h1>My Requests</h1><span>Track every request you have submitted and review its current approval status.</span></div></div><section className="data-card my-request-list"><table><thead><tr><th>Request ID</th><th>Submission Date</th><th>Request Type</th><th>Description</th><th>Status</th></tr></thead><tbody>{listRows.map((row,index)=><tr key={String(row.id??index)} className={String(request?.id)===String(row.id)?'selected':''} onClick={()=>selectMyRequest(row)}><td><b>{String(row.request_id)}</b></td><td>{new Date(String(row.created_at)).toLocaleDateString()}</td><td>{String(row.request_type).replaceAll('_',' ')}</td><td>{String(row.description??row.title??'—')}</td><td><span className={`pill ${String(row.status)}`}>{String(row.status)}</span></td></tr>)}</tbody></table>{!loading&&!listRows.length&&<div className="loading">You have not submitted any requests yet.</div>}</section>{request&&<section className="my-request-detail"><header><div><p>{String(request.request_type).replaceAll('_',' ').toUpperCase()} DETAILS</p><h2>{String(request.reference_no??request.request_id??request.id)}</h2></div><button onClick={()=>setSelectedCorporateRequest(null)}>×</button></header><div className="my-request-summary"><div><small>Request ID</small><b>{String(request.reference_no??request.request_id??request.id)}</b></div><div><small>Submission Date</small><b>{new Date(String(request.request_date??request.created_at)).toLocaleDateString()}</b></div><div><small>Requestor Name</small><b>{String(request.employee_name??`${request.first_name??''} ${request.last_name??''}`)}</b></div><div><small>Request Status</small><b className={`status-text ${String(request.status)}`}>{String(request.status)}</b></div><div><small>Department</small><b>{String(request.employee_department??request.department??'—')}</b></div><div><small>Business Units</small><b>{String(request.business_units??'—')}</b></div>{String(request.request_type)==='payment'&&<><div><small>Payment Type</small><b>{String(details.paymentType??'—')}</b></div><div><small>Payment Transfer Type</small><b>{String(details.paymentMethod??'—')}</b></div><div><small>Pay To</small><b>{String(request.payee??'—')}</b></div><div><small>Currency Type</small><b>{String(request.currency??'—')}</b></div><div><small>Total Amount</small><b>{Number(request.amount??0).toLocaleString()}</b></div></>}<div className="description"><small>Description</small><b>{String(request.purpose??request.description??request.reason??request.title??'—')}</b></div></div>{steps.length>0&&<div className="my-request-status-cards">{steps.map(step=><article key={String(step.step_order)}><h3>{String(step.step_name)} Status</h3><strong className={step.action?String(step.action):Number(step.step_order)===Number(request.current_step)?'pending':'upcoming'}>{step.action?String(step.action):Number(step.step_order)===Number(request.current_step)?'Pending':'Waiting'}</strong><h4>{String(step.step_name)} Name</h4><p>{String(step.approver_name??'Not assigned')}</p>{step.acted_at&&<small>{new Date(String(step.acted_at)).toLocaleString()}</small>}</article>)}</div>}{Boolean(detail.attachments?.length)&&<div className="my-request-files"><h3>Attachments</h3>{detail.attachments?.map(file=><button key={String(file.id)} onClick={()=>openCorporateAttachment(request.id,file)}>↗ {String(file.original_name)}</button>)}</div>}</section>}</>
+    const detail=selectedCorporateRequest as {request?:Record<string,unknown>;steps?:(Record<string,unknown>&{acted_at?:string|null})[];attachments?:Record<string,unknown>[]} | null;
+    const request=detail?.request;
+    const steps=(detail?.steps??[]).map(step=>String(request?.status)==='rejected'&&!step.action&&Number(step.step_order)>Number(request?.current_step)?{...step,action:'Process Terminated'}:step);
+    const detailFields=corporateRequestDetailFields(request);
+    return <>
+      <div className="page-title"><div><p>REQUEST HISTORY</p><h1>My Requests</h1><span>Track every request you have submitted and review its current approval status.</span></div></div>
+      <section className="data-card my-request-list"><table><thead><tr><th>Request ID</th><th>Submission Date</th><th>Type</th><th>Description</th><th>Status</th></tr></thead><tbody>{listRows.map((row,index)=><tr key={String(row.id??index)} className={String(request?.id)===String(row.id)?'selected':''} onClick={()=>selectMyRequest(row)}><td><b>{corporateRequestId(row)}</b></td><td>{new Date(String(row.created_at)).toLocaleDateString()}</td><td>{requestFormName(row.request_type)}</td><td>{String(row.description??row.title??'—')}</td><td><span className={`pill ${String(row.status)}`}>{String(row.status)==="pending"&&row.pending_with?`Pending with ${String(row.pending_with)}`:String(row.status)}</span></td></tr>)}</tbody></table>{!loading&&!listRows.length&&<div className="loading">You have not submitted any requests yet.</div>}</section>
+      {request&&<section className="my-request-detail"><header><div><p>{requestFormName(request.request_type).toUpperCase()} DETAILS</p><h2>{corporateRequestId(request)}</h2></div><button onClick={()=>setSelectedCorporateRequest(null)}>×</button></header><div className="my-request-summary">{detailFields.filter(field=>field.className!=="assigned-vehicle").map(field=><div key={field.label} className={field.className}><small>{field.label}</small><b>{field.value}</b></div>)}{detailFields.some(field=>field.className==="assigned-vehicle")&&<section className="assigned-vehicle-information"><h3>Assigned Vehicle Information</h3><div className="assigned-vehicle-grid">{detailFields.filter(field=>field.className==="assigned-vehicle").map(field=><div key={field.label}><small>{field.label}</small><b>{field.value}</b></div>)}</div></section>}</div>{steps.length>0&&<div className="my-request-status-cards">{steps.map(step=><article key={String(step.step_order)}><h3>{String(step.step_name)} Status</h3><strong className={step.action?String(step.action):Number(step.step_order)===Number(request.current_step)?'pending':'upcoming'}>{step.action?String(step.action):Number(step.step_order)===Number(request.current_step)?'Pending':'Waiting'}</strong><h4>{String(step.step_name)} Name</h4><p>{String(step.approver_name??'Not assigned')}</p>{step.acted_at&&<small>{new Date(String(step.acted_at)).toLocaleString()}</small>}{Boolean(step.comment)&&<div className="approval-step-comment"><small>Comment</small><p>{String(step.comment)}</p></div>}</article>)}</div>}{Boolean(detail.attachments?.length)&&<div className="my-request-files"><h3>Attachments</h3>{detail.attachments?.map(file=><button key={String(file.id)} onClick={()=>openCorporateAttachment(request.id,file)}>↗ {String(file.original_name)}</button>)}</div>}</section>}
+    </>
   }
   if (corporateApprovalType[page]) {
     const detail=selectedCorporateRequest as {request?:(Record<string,unknown>&{details?:never});steps?:(Record<string,unknown>&{acted_at?:string|null})[];attachments?:Record<string,unknown>[];canAct?:boolean} | null;
-    const request=detail?.request;const steps=detail?.steps??[];const currentStep=Number(request?.current_step??1);
+    const request=detail?.request;const steps=detail?.steps??[];const currentStep=Number(request?.current_step??1);const detailFields=corporateRequestDetailFields(request);
     return <>
       <div className="page-title"><div><p>CORPORATE APPROVAL</p><h1>{page}</h1><span>Select a request to view its details and approval journey.</span></div></div>
       <div className={`corporate-approval-layout${detail?' detail-open':''}`}>
-        <section className="data-card corporate-approval-list"><table><thead><tr><th>Reference</th><th>Employee</th><th>Request</th><th>Amount</th><th>Status</th></tr></thead><tbody>{listRows.map((row,index)=><tr key={String(row.id??index)} className={String(request?.id)===String(row.id)?'selected':''} onClick={()=>selectCorporateRequest(row.id)}><td><b>{String(row.reference_no)}</b><small>{new Date(String(row.created_at)).toLocaleDateString()}</small></td><td>{String(row.employee_name)}</td><td>{String(row.purpose)}</td><td>{Number(row.amount).toLocaleString()} {String(row.currency)}</td><td><span className={`pill ${String(row.status)}`}>{String(row.status)}</span></td></tr>)}</tbody></table>{!loading&&!listRows.length&&<div className="loading">No payment requests assigned to you or submitted by you.</div>}</section>
+        <section className="data-card corporate-approval-list"><table><thead><tr><th>Reference</th><th>Employee</th><th>Request</th><th>Amount</th><th>Status</th></tr></thead><tbody>{listRows.map((row,index)=><tr key={String(row.id??index)} className={String(request?.id)===String(row.id)?'selected':''} onClick={()=>selectCorporateRequest(row.id)}><td><b>{corporateRequestId(row)}</b><small>{new Date(String(row.created_at)).toLocaleDateString()}</small></td><td>{String(row.employee_name)}</td><td>{String(row.purpose)}</td><td>{Number(row.amount).toLocaleString()} {String(row.currency)}</td><td><span className={`pill ${String(row.status)}`}>{String(row.status)}</span></td></tr>)}</tbody></table>{!loading&&!listRows.length&&<div className="loading">No payment requests assigned to you or submitted by you.</div>}</section>
         {detail&&request&&<aside className="corporate-request-detail">
-          <header><div><p>REQUEST DETAILS</p><h2>{String(request.reference_no)}</h2><span>{String(request.employee_name)} · {String(request.employee_no)}</span></div><button onClick={()=>setSelectedCorporateRequest(null)}>×</button></header>
+          <header><div><p>REQUEST DETAILS</p><h2>{corporateRequestId(request)}</h2><span>{String(request.employee_name)} · {String(request.employee_no)}</span></div><button onClick={()=>setSelectedCorporateRequest(null)}>×</button></header>
           <div className="request-detail-grid">
-            <div><small>Submission Date</small><b>{new Date(String(request.request_date)).toLocaleDateString()}</b></div><div><small>Status</small><b className={`status-text ${String(request.status)}`}>{String(request.status)}</b></div><div><small>Department</small><b>{String(request.employee_department??'—')}</b></div><div><small>Business Units</small><b>{String(request.business_units??'—')}</b></div><div><small>Pay To</small><b>{String(request.payee??'—')}</b></div><div><small>Total Amount</small><b>{Number(request.amount).toLocaleString()} {String(request.currency)}</b></div><div className="wide"><small>Description</small><b>{String(request.purpose)}</b></div>
-            {request.details&&Object.entries(request.details as Record<string,unknown>).map(([key,value])=><div key={key}><small>{key.replace(/([A-Z])/g,' $1')}</small><b>{String(value??'—')}</b></div>)}
+            {detailFields.map(field=><div key={field.label} className={field.className==="description"?"wide":undefined}><small>{field.label}</small><b>{field.value}</b></div>)}
           </div>
-          <section className="approval-journey"><h3>Approval journey</h3>{steps.map((step,index)=>{const order=Number(step.step_order);const state=step.action?String(step.action):order===currentStep&&request.status==='pending'?'current':order>currentStep?'upcoming':'completed';return <article className={state} key={order}><i>{step.action==='approved'?'✓':step.action==='rejected'?'×':order}</i><div><b>{String(step.step_name)}</b><span>{String(step.approver_name??'Approver not assigned')}</span>{step.acted_at&&<small>{new Date(String(step.acted_at)).toLocaleString()}</small>}</div><em>{state==='current'?'Waiting for approval':state==='upcoming'?'Next approver':String(step.action??'Completed')}</em>{index<steps.length-1&&<u/>}</article>})}</section>
+          <section className="approval-journey"><h3>Approval journey</h3>{steps.map((step,index)=>{const order=Number(step.step_order);const state=step.action?String(step.action):order===currentStep&&request.status==='pending'?'current':order>currentStep?'upcoming':'completed';return <article className={state} key={order}><i>{step.action==='approved'?'✓':step.action==='rejected'?'×':order}</i><div><b>{String(step.step_name)}</b><span>{String(step.approver_name??'Approver not assigned')}</span>{step.acted_at&&<small>{new Date(String(step.acted_at)).toLocaleString()}</small>}{Boolean(step.comment)&&<small className="approval-step-comment">Comment: {String(step.comment)}</small>}</div><em>{state==='current'?'Waiting for approval':state==='upcoming'?'Next approver':String(step.action??'Completed')}</em>{index<steps.length-1&&<u/>}</article>})}</section>
           {Boolean(detail.attachments?.length)&&<section className="detail-attachments"><h3>Attachments</h3>{detail.attachments?.map(file=><button type="button" key={String(file.id)} onClick={()=>openCorporateAttachment(request.id,file)}><span>↗</span><div><b>{String(file.original_name)}</b><small>{String(file.mime_type)} · {(Number(file.file_size)/1024).toFixed(1)} KB</small></div></button>)}</section>}
-          {detail.canAct&&<footer className="corporate-approval-actions"><button className="reject" onClick={()=>setCorporateConfirmation({id:String(request.id),action:'rejected',name:String(request.reference_no)})}>Reject</button><button className="approve" onClick={()=>setCorporateConfirmation({id:String(request.id),action:'approved',name:String(request.reference_no)})}>Approve</button></footer>}
+          {detail.canAct&&<footer className="corporate-approval-actions"><button className="reject" onClick={()=>setCorporateConfirmation({id:String(request.id),action:'rejected',name:corporateRequestId(request)})}>Reject</button><button className="approve" onClick={()=>setCorporateConfirmation({id:String(request.id),action:'approved',name:corporateRequestId(request)})}>Approve</button></footer>}
         </aside>}
       </div>
       {corporateConfirmation&&<ConfirmDialog confirmation={corporateConfirmation} onCancel={()=>setCorporateConfirmation(null)} onConfirm={actCorporateRequest}/>}
@@ -1439,6 +2027,42 @@ function DataPage({
             <div className="payment-approval-note"><b>Approval workflow</b><span>Department Head Approver → Finance Approver → Cashier</span><small>Approvers are assigned from Users & Roles → Approval Setup.</small></div>
             <div className="form-footer"><button type="button" onClick={() => setShowForm(false)}>Cancel</button><button type="button" className="primary" onClick={(event)=>{const form=event.currentTarget.form;if(!form?.reportValidity())return;paymentRequestFormRef.current=form;setShowPaymentSubmitConfirmation(true)}}>Submit Payment Request</button></div>
           </form>
+          ) : page === "Vehicle Request Form" ? (
+          <div className="vehicle-request-layout">
+            <form ref={paymentRequestFormRef} className="employee-form payment-request-form vehicle-request-form" onSubmit={createCorporate}>
+              <div className="payment-form-heading"><div><p>VEHICLE REQUEST</p><h2>New Vehicle Request</h2><span>Complete the required trip information and submit it for approval.</span></div><button type="button" onClick={() => setShowForm(false)}>×</button></div>
+              <fieldset><legend>Requester information</legend><div className="form-grid vehicle-requester-grid">
+                <label>Submission Date<input value={formatDateDDMMYYYY(new Date())} readOnly /></label>
+                <label>Requester Name<input value={`${String(paymentProfile.first_name ?? "")} ${String(paymentProfile.last_name ?? "")}`.trim()} readOnly /></label>
+                <label>Employee ID<input value={String(paymentProfile.employee_no ?? "")} readOnly /></label>
+                <label>Department<input value={String(paymentProfile.department ?? "")} readOnly /></label>
+              </div></fieldset>
+              <fieldset><legend>Trip information</legend><div className="form-grid vehicle-trip-grid">
+                <label>Number of Passengers *<input name="numberOfPassengers" type="number" min="1" step="1" required /></label>
+                <label>Go *<input name="goDate" type="date" required /></label>
+                <label>Return *<input name="returnDate" type="date" required /></label>
+                <label>Out *<select name="outTime" required><option value="">Select time</option>{vehicleTimeOptions.map((time) => <option key={time.value} value={time.value}>{time.label}</option>)}</select></label>
+                <label>In *<select name="inTime" required><option value="">Select time</option>{vehicleTimeOptions.map((time) => <option key={time.value} value={time.value}>{time.label}</option>)}</select></label>
+                <label>Requested Vehicle Type *<select name="requestedVehicleType" required><option value="">Select vehicle type</option><option>Any</option><option>Saloon</option></select></label>
+                <label className="span-2">Activities (Destination) *<textarea name="activities" rows={5} required /></label>
+                <label>Remark<textarea name="remark" rows={5} /></label>
+                <label className="wide payment-attachments">Attachments<input name="attachments" type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" /><small>Up to 5 files, maximum 10 MB each.</small></label>
+              </div></fieldset>
+              <div className="payment-approval-note"><b>Approval workflow</b><span>Department Head Approver → Transportation Supervisor</span><small>Department Head is auto assigned from requester Report To.</small></div>
+              <div className="form-footer"><button type="button" onClick={() => setShowForm(false)}>Cancel</button><button type="button" className="primary" onClick={(event)=>{const form=event.currentTarget.form;if(!form?.reportValidity())return;paymentRequestFormRef.current=form;setShowPaymentSubmitConfirmation(true)}}>Submit Vehicle Request</button></div>
+            </form>
+            <aside className="vehicle-request-side-list">
+              <div><p>INTERNAL VEHICLES</p><h3>Vehicle Management (Internal)</h3><span>Reference list for requester visibility.</span></div>
+              <div className="vehicle-request-vehicle-table">
+                {internalVehicles.length ? internalVehicles.map((vehicle, index) => (
+                  <article key={String(vehicle.id ?? index)}>
+                    <div><b>{String(vehicle.vehicle_name ?? "—")}</b><small>{String(vehicle.vehicle_plate_number ?? "—")} · {String(vehicle.vehicle_type ?? "—")}</small></div>
+                    <span className={`vehicle-status ${String(vehicle.status ?? "Free").toLowerCase()}`}>{String(vehicle.status ?? "Free")}</span>
+                  </article>
+                )) : <div className="loading">No internal vehicles found.</div>}
+              </div>
+            </aside>
+          </div>
           ) : (
           <form
             className="employee-form corporate-form"
@@ -1488,24 +2112,54 @@ function DataPage({
           ) : (
             <table className="payment-request-list-table">
               <thead>
-                <tr>
-                  <th>Request ID</th>
-                  <th>Submission Date</th>
-                  <th>Requestor Name</th>
-                  <th>Pay To</th>
-                  <th>Description</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                </tr>
+                {page === "Vehicle Request Form" ? (
+                  <tr>
+                    <th>Request ID</th>
+                    <th>Submission Date</th>
+                    <th>Requester Name</th>
+                    <th>Department</th>
+                    <th>Go</th>
+                    <th>Return</th>
+                    <th>Out</th>
+                    <th>In</th>
+                    <th>Activities (Destination)</th>
+                    <th>Status</th>
+                  </tr>
+                ) : (
+                  <tr>
+                    <th>Request ID</th>
+                    <th>Submission Date</th>
+                    <th>Requestor Name</th>
+                    <th>Pay To</th>
+                    <th>Description</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                  </tr>
+                )}
               </thead>
               <tbody>
                 {listRows.map((r, i) => (
                   <tr key={String(r.id ?? i)}>
+                    {page === "Vehicle Request Form" ? (
+                      <>
+                        <td><b>{corporateRequestId(r, "vehicle_request")}</b></td>
+                        <td>{formatDateDDMMYYYY(new Date(String(r.request_date ?? r.submission_date ?? r.created_at)))}</td>
+                        <td>{String(r.employee_name ?? r.requester_name ?? "—")}</td>
+                        <td>{String(r.employee_department ?? r.department ?? "—")}</td>
+                        <td>{textValue(requestDetails(r).goDate)}</td>
+                        <td>{textValue(requestDetails(r).returnDate)}</td>
+                        <td>{textValue(requestDetails(r).outTime)}</td>
+                        <td>{textValue(requestDetails(r).inTime)}</td>
+                        <td className="request-description-cell">{String(r.purpose ?? "—")}</td>
+                        <td><span className={`pill ${String(r.status)}`}>{String(r.status)==="pending"&&r.pending_with?`Pending with ${String(r.pending_with)}`:String(r.status)}</span></td>
+                      </>
+                    ) : (
+                      <>
                     <td>
                       <b>{String(r.reference_no)}</b>
                     </td>
-                    <td>{new Date(String(r.request_date)).toLocaleDateString()}</td>
-                    <td>{String(r.employee_name)}</td>
+                    <td>{formatDateDDMMYYYY(new Date(String(r.request_date ?? r.submission_date ?? r.created_at)))}</td>
+                    <td>{String(r.employee_name ?? r.requester_name ?? "—")}</td>
                     <td>{String(r.payee ?? "—")}</td>
                     <td>{String(r.purpose)}</td>
                     <td>
@@ -1513,26 +2167,34 @@ function DataPage({
                     </td>
                     <td>
                       <span className={`pill ${String(r.status)}`}>
-                        {String(r.status)}
+                        {String(r.status)==="pending"&&r.pending_with?`Pending with ${String(r.pending_with)}`:String(r.status)}
                       </span>
                     </td>
+                      </>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
         </section>
-        {showPaymentSubmitConfirmation&&<div className="confirm-backdrop" onMouseDown={()=>setShowPaymentSubmitConfirmation(false)}><div className="confirm-dialog" onMouseDown={event=>event.stopPropagation()}><div className="confirm-icon approve">✓</div><h2>Submit payment request?</h2><p>Please confirm that the payment request information is correct before submitting it for approval.</p><div><button type="button" onClick={()=>setShowPaymentSubmitConfirmation(false)}>Cancel</button><button type="button" className="confirm-approve" onClick={()=>{setShowPaymentSubmitConfirmation(false);paymentSubmitConfirmedRef.current=true;paymentRequestFormRef.current?.requestSubmit()}}>Yes, submit</button></div></div></div>}
+        {showPaymentSubmitConfirmation&&<div className="confirm-backdrop" onMouseDown={()=>setShowPaymentSubmitConfirmation(false)}><div className="confirm-dialog" onMouseDown={event=>event.stopPropagation()}><div className="confirm-icon approve">✓</div><h2>{page==="Vehicle Request Form"?"Submit vehicle request?":"Submit payment request?"}</h2><p>{page==="Vehicle Request Form"?"Please confirm that the vehicle request information is correct before submitting it for approval.":"Please confirm that the payment request information is correct before submitting it for approval."}</p><div><button type="button" onClick={()=>setShowPaymentSubmitConfirmation(false)}>Cancel</button><button type="button" className="confirm-approve" onClick={()=>{setShowPaymentSubmitConfirmation(false);paymentSubmitConfirmedRef.current=true;paymentRequestFormRef.current?.requestSubmit()}}>Yes, submit</button></div></div></div>}
       </>
     );
   if(page==="Banner"){
     const banner=(!Array.isArray(rows)&&rows&&typeof rows==='object'?rows:{}) as Record<string,unknown>;const logoUrl=String(banner.logoUrl??'');return <><div className="page-title"><div><p>GENERAL SETTING</p><h1>Navigation Banner</h1><span>Customize the company logo and text displayed at the top of the navigation.</span></div></div><section className="banner-settings-layout"><form className="banner-settings-card" onSubmit={saveBanner}><h2>Banner content</h2><input type="hidden" name="existingLogo" value={logoUrl}/><label>Company logo<input className="banner-file-input" name="logo" type="file" accept="image/png,image/jpeg,image/webp,image/gif"/><small>PNG, JPG, WEBP or GIF · maximum 10 MB</small></label><label>Icon / Logo text<input name="iconText" maxLength={3} defaultValue={String(banner.iconText??'CP')} required /><small>Used when no company logo is uploaded.</small></label><label>Portal title<input name="title" maxLength={50} defaultValue={String(banner.title??'Company Portal')} required /></label><label>Subtitle<input name="subtitle" maxLength={80} defaultValue={String(banner.subtitle??'People & Operations')} required /></label><label>Icon color<input name="iconColor" type="color" defaultValue={String(banner.iconColor??'#6d5ce7')} /></label>{logoUrl&&<label className="banner-remove-logo"><input name="removeLogo" type="checkbox"/> Remove current company logo</label>}<div><button className="primary">Save banner</button></div></form><section className="banner-preview-card"><p>LIVE PREVIEW</p><div className="banner-preview">{logoUrl?<span className="logo-image"><img src={`${API}${logoUrl}`} alt="Company logo"/></span>:<span style={{background:String(banner.iconColor??'#6d5ce7')}}>{String(banner.iconText??'CP')}</span>}<div><b>{String(banner.title??'Company Portal')}</b><small>{String(banner.subtitle??'People & Operations')}</small></div></div></section></section>{roleSaveNotice&&<div className={`role-save-popup ${roleSaveNotice.type}`}><span>{roleSaveNotice.type==='success'?'✓':'!'}</span><div><b>{roleSaveNotice.type==='success'?'Saved successfully':'Save failed'}</b><small>{roleSaveNotice.message}</small></div><button onClick={()=>setRoleSaveNotice(null)}>×</button></div>}</>
   }
   if(page==="Approval Setup"){
-    const setup=(!Array.isArray(rows)&&rows&&typeof rows==='object'?rows:{}) as {steps?:Record<string,unknown>[];users?:Record<string,unknown>[]};const workflows:["payment"|"advance_clearance",string][]=[["payment","Payment Request Form"],["advance_clearance","Advance Clearance Request"]];const names=['Department Head Approver','Finance Approver','Cashier'];return <><div className="page-title"><div><p>USERS & ROLES</p><h1>Approval Setup</h1><span>Assign approvers for each corporate request workflow.</span></div></div><div className="approval-setup-grid">{workflows.map(([type,title])=><form className="approval-workflow-card" key={type} onSubmit={(event)=>saveApprovalWorkflow(event,type)}><header><span>{type==='payment'?'PAY':'ADV'}</span><div><h2>{title}</h2><p>Three-step approval workflow</p></div></header><div className="workflow-steps">{names.map((name,index)=>{const step=setup.steps?.find(item=>item.request_type===type&&Number(item.step_order)===index+1);return <label key={name}><i>{index+1}</i><div><b>{name}</b><SearchableApproverSelect name={`step-${index+1}`} users={setup.users??[]} defaultValue={String(step?.approver_user_id??'')} /></div>{index<2&&<em>›</em>}</label>})}</div><footer><button className="primary">Save workflow</button></footer></form>)}</div>{roleSaveNotice&&<div className={`role-save-popup ${roleSaveNotice.type}`}><span>{roleSaveNotice.type==='success'?'✓':'!'}</span><div><b>{roleSaveNotice.type==='success'?'Saved successfully':'Save failed'}</b><small>{roleSaveNotice.message}</small></div><button onClick={()=>setRoleSaveNotice(null)}>×</button></div>}</>
+    const setup=(!Array.isArray(rows)&&rows&&typeof rows==='object'?rows:{}) as {steps?:Record<string,unknown>[];users?:Record<string,unknown>[]};
+    const workflows:{type:"payment"|"advance_clearance"|"vehicle_request";title:string;short:string;steps:string[]}[]=[
+      {type:"payment",title:"Payment Request Form",short:"PAY",steps:["Department Head Approver","Finance Approver","Cashier"]},
+      {type:"advance_clearance",title:"Advance Clearance Request",short:"ADV",steps:["Department Head Approver","Finance Approver","Cashier"]},
+      {type:"vehicle_request",title:"Vehicle Request Form",short:"VEH",steps:["Department Head Approver","Transportation Supervisor"]},
+    ];
+    return <><div className="page-title"><div><p>USERS & ROLES</p><h1>Approval Setup</h1><span>Assign approvers for each corporate request workflow.</span></div></div><div className="approval-setup-grid">{workflows.map((workflow)=><form className="approval-workflow-card" key={workflow.type} onSubmit={(event)=>saveApprovalWorkflow(event,workflow.type,workflow.steps)}><header><span>{workflow.short}</span><div><h2>{workflow.title}</h2><p>{workflow.steps.length}-step approval workflow</p></div></header><div className="workflow-steps">{workflow.steps.map((name,index)=>{const step=setup.steps?.find(item=>item.request_type===workflow.type&&Number(item.step_order)===index+1);const isDynamicDepartmentHead=name==="Department Head Approver"&&index===0;return <label key={name}><i>{index+1}</i><div><b>{name}</b>{isDynamicDepartmentHead?<><input type="hidden" name={`step-${index+1}`} value=""/><span className="dynamic-approver-badge">Auto from requester Report To</span></>:<SearchableApproverSelect name={`step-${index+1}`} users={setup.users??[]} defaultValue={String(step?.approver_user_id??'')} />}</div>{index<workflow.steps.length-1&&<em>›</em>}</label>})}</div><footer><button className="primary">Save workflow</button></footer></form>)}</div>{roleSaveNotice&&<div className={`role-save-popup ${roleSaveNotice.type}`}><span>{roleSaveNotice.type==='success'?'✓':'!'}</span><div><b>{roleSaveNotice.type==='success'?'Saved successfully':'Save failed'}</b><small>{roleSaveNotice.message}</small></div><button onClick={()=>setRoleSaveNotice(null)}>×</button></div>}</>
   }
   if (page === "Role Access Control") {
-    const roles = ["admin", "hr", "manager", "approver", "employee"];
+    const roles = roleOptions;
     return (
       <>
         <div className="page-title">
@@ -1548,7 +2210,7 @@ function DataPage({
               <tr>
                 <th>Menu</th>
                 {roles.map((role) => (
-                  <th key={role}>{role}</th>
+                  <th key={role.role_key}>{role.role_name}</th>
                 ))}
               </tr>
             </thead>
@@ -1558,7 +2220,8 @@ function DataPage({
                   <td>
                     <b>{menu.key}</b>
                   </td>
-                  {roles.map((role) => {
+                  {roles.map((roleOption) => {
+                    const role = roleOption.role_key;
                     const entry = listRows.find(
                       (row) => row.role === role && row.menu_key === menu.key,
                     );
@@ -1975,6 +2638,13 @@ function DataPage({
     const pagedPaymentReportRows=filtered.slice((currentPaymentReportPage-1)*paymentReportPageSize,currentPaymentReportPage*paymentReportPageSize);
     const totalAmount=filtered.reduce((sum,row)=>sum+Number(row.amount??0),0);
     const statusCount=(status:string)=>filtered.filter(row=>String(row.status)===status).length;
+    const paymentReportStatusLabel=(row:Record<string,unknown>)=>{
+      const status=String(row.status);
+      if(status==="approved")return "Completed";
+      if(status==="pending")return `Pending with ${String(row.pending_with??"Not assigned")}`;
+      return status.charAt(0).toUpperCase()+status.slice(1);
+    };
+    const paymentReportStatusClass=(row:Record<string,unknown>)=>String(row.status)==="approved"?"approved":String(row.status);
     const chartColors=["#6755dc","#25a77d","#e7942f","#3380d8","#de5f73","#8b67d8"];
     type PaymentChartItem={name:string;count:number;amount:number};
     const aggregateBy=(key:"payment_type"|"department"):PaymentChartItem[]=>{
@@ -2018,7 +2688,7 @@ function DataPage({
       <div className="payment-report-summary">
         <article><small>Total Requests</small><strong>{filtered.length}</strong><span>Filtered records</span></article>
         <article><small>Pending</small><strong>{statusCount("pending")}</strong><span>Awaiting approval</span></article>
-        <article><small>Approved</small><strong>{statusCount("approved")}</strong><span>Completed requests</span></article>
+        <article><small>Completed</small><strong>{statusCount("approved")}</strong><span>Finished approvals</span></article>
         <article><small>Rejected</small><strong>{statusCount("rejected")}</strong><span>Declined requests</span></article>
         <article><small>Total Amount</small><strong>{totalAmount.toLocaleString()}</strong><span>Across currencies</span></article>
       </div>
@@ -2031,7 +2701,7 @@ function DataPage({
           <label className="report-search">Search<input placeholder="Request ID, employee, pay to or description" value={paymentReportFilters.search} onChange={e=>updatePaymentReportFilter({search:e.target.value})}/></label>
         </div>
       </section>
-      <section className="data-card payment-report-table"><table><thead><tr><th>Request ID</th><th>Submission Date</th><th>Requestor</th><th>Department</th><th>Business Unit</th><th>Payment Type</th><th>Pay To</th><th>Amount</th><th>Status</th><th>Pending With</th></tr></thead><tbody>{pagedPaymentReportRows.map(row=><tr key={String(row.id)}><td><b>{String(row.reference_no)}</b></td><td>{new Date(String(row.submission_date)).toLocaleDateString()}</td><td><b>{String(row.requestor_name)}</b><small>{String(row.employee_no)}</small></td><td>{String(row.department??"—")}</td><td>{String(row.business_unit??"—")}</td><td>{String(row.payment_type??"—")}</td><td>{String(row.pay_to??"—")}</td><td><b>{Number(row.amount??0).toLocaleString()} {String(row.currency)}</b></td><td><span className={`pill ${String(row.status)}`}>{String(row.status)}</span></td><td>{String(row.status)==="pending"?String(row.pending_with??"Not assigned"):"—"}</td></tr>)}</tbody></table>{!loading&&!filtered.length&&<div className="loading">No payment requests match the selected filters.</div>}{filtered.length>0&&<div className="employee-pagination"><div>Showing {(currentPaymentReportPage-1)*paymentReportPageSize+1}–{Math.min(currentPaymentReportPage*paymentReportPageSize,filtered.length)} of {filtered.length} requests</div><div className="pagination-controls"><label>Rows<select value={paymentReportPageSize} onChange={event=>{setPaymentReportPageSize(Number(event.target.value));setPaymentReportPage(1)}}><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label><button disabled={currentPaymentReportPage===1} onClick={()=>setPaymentReportPage(value=>Math.max(1,value-1))}>Previous</button><span>Page</span><input aria-label="Payment report page number" type="number" min="1" max={paymentReportTotalPages} value={currentPaymentReportPage} onChange={event=>setPaymentReportPage(Math.min(paymentReportTotalPages,Math.max(1,Number(event.target.value)||1)))}/><span>of {paymentReportTotalPages}</span><button disabled={currentPaymentReportPage===paymentReportTotalPages} onClick={()=>setPaymentReportPage(value=>Math.min(paymentReportTotalPages,value+1))}>Next</button></div></div>}</section>
+      <section className="data-card payment-report-table"><table><thead><tr><th>Request ID</th><th>Submission Date</th><th>Requestor</th><th>Department</th><th>Business Unit</th><th>Payment Type</th><th>Pay To</th><th>Amount</th><th>Currency Type</th><th>Status</th></tr></thead><tbody>{pagedPaymentReportRows.map(row=><tr key={String(row.id)}><td><b>{String(row.reference_no)}</b></td><td>{new Date(String(row.submission_date)).toLocaleDateString()}</td><td><b>{String(row.requestor_name)}</b><small>{String(row.employee_no)}</small></td><td>{String(row.department??"—")}</td><td>{String(row.business_unit??"—")}</td><td>{String(row.payment_type??"—")}</td><td>{String(row.pay_to??"—")}</td><td><b>{Number(row.amount??0).toLocaleString()}</b></td><td>{String(row.currency??"—")}</td><td><span className={`pill ${paymentReportStatusClass(row)}`}>{paymentReportStatusLabel(row)}</span></td></tr>)}</tbody></table>{!loading&&!filtered.length&&<div className="loading">No payment requests match the selected filters.</div>}{filtered.length>0&&<div className="employee-pagination"><div>Showing {(currentPaymentReportPage-1)*paymentReportPageSize+1}–{Math.min(currentPaymentReportPage*paymentReportPageSize,filtered.length)} of {filtered.length} requests</div><div className="pagination-controls"><label>Rows<select value={paymentReportPageSize} onChange={event=>{setPaymentReportPageSize(Number(event.target.value));setPaymentReportPage(1)}}><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label><button disabled={currentPaymentReportPage===1} onClick={()=>setPaymentReportPage(value=>Math.max(1,value-1))}>Previous</button><span>Page</span><input aria-label="Payment report page number" type="number" min="1" max={paymentReportTotalPages} value={currentPaymentReportPage} onChange={event=>setPaymentReportPage(Math.min(paymentReportTotalPages,Math.max(1,Number(event.target.value)||1)))}/><span>of {paymentReportTotalPages}</span><button disabled={currentPaymentReportPage===paymentReportTotalPages} onClick={()=>setPaymentReportPage(value=>Math.min(paymentReportTotalPages,value+1))}>Next</button></div></div>}</section>
     </>;
   }
   if (page === "Reports") {
@@ -2105,12 +2775,15 @@ function DataPage({
   if (page === "Users & Roles")
     return (
       <>
-        <div className="page-title">
+        <div className="page-title users-management-title">
           <div>
             <p>ACCESS CONTROL</p>
             <h1>Users & Roles</h1>
             <span>Manage system access and permissions</span>
           </div>
+          <button type="button" className="primary create-role-button" onClick={() => setShowCreateRole(true)}>
+            + Create New User Role
+          </button>
         </div>
         <section className="employee-filter-card users-filter-card">
           <div className="employee-filter-heading">
@@ -2125,7 +2798,7 @@ function DataPage({
             <label>Organization<input value={userFilters.organization} onChange={(event) => updateUserFilter("organization", event.target.value)} /></label>
             <label>Project Location<input value={userFilters.projectLocation} onChange={(event) => updateUserFilter("projectLocation", event.target.value)} /></label>
             <label>Report To<input value={userFilters.reportTo} onChange={(event) => updateUserFilter("reportTo", event.target.value)} /></label>
-            <label>Role<select value={userFilters.role} onChange={(event) => updateUserFilter("role", event.target.value)}><option value="">All roles</option><option value="admin">Admin</option><option value="hr">HR</option><option value="manager">Manager</option><option value="approver">Approver</option><option value="employee">Employee</option></select></label>
+            <label>Role<select value={userFilters.role} onChange={(event) => updateUserFilter("role", event.target.value)}><option value="">All roles</option>{roleOptions.map((option) => <option key={option.role_key} value={option.role_key}>{option.role_name}</option>)}</select></label>
           </div>
         </section>
         <section className="data-card users-role-card">
@@ -2149,9 +2822,9 @@ function DataPage({
               {pagedUserRows.map((r, i) => {
                 const passwordKey = String(r.id ?? r.username ?? i);
                 const visiblePassword = Boolean(visiblePasswords[passwordKey]);
-                const realPassword = String(r.password_plain ?? r.initial_password ?? r.temporary_password ?? r.password ?? "");
+                const realPassword = String(r.password_plain ?? r.initial_password ?? r.temporary_password ?? "");
                 const maskedPassword = String(r.password_mask ?? "********");
-                const passwordDisplay = visiblePassword ? (realPassword || maskedPassword) : maskedPassword;
+                const passwordDisplay = visiblePassword ? (realPassword || "Encrypted — reset to change") : maskedPassword;
                 return (
                 <tr key={passwordKey}>
                   <td>{String(r.employee_no ?? "—")}</td>
@@ -2171,15 +2844,27 @@ function DataPage({
                       value={String(r.role)}
                       onChange={(e) => updateUser(r.id, e.target.value)}
                     >
-                      {["admin", "hr", "manager", "approver", "employee"].map(
-                        (role) => (
-                          <option key={role}>{role}</option>
-                        ),
+                      {!roleOptions.some((option) => option.role_key === String(r.role)) && (
+                        <option value={String(r.role)}>{roleLabel(r.role)}</option>
                       )}
+                      {roleOptions.map((option) => (
+                        <option key={option.role_key} value={option.role_key}>{option.role_name}</option>
+                      ))}
                     </select>
                   </td>
                   <td className="username-cell">{String(r.username ?? "—")}</td>
-                  <td className="password-cell"><span>{passwordDisplay}</span><button type="button" className="password-eye-button" aria-label={visiblePassword ? "Hide password" : "Show password"} onClick={() => setVisiblePasswords((current) => ({ ...current, [passwordKey]: !current[passwordKey] }))}>{visiblePassword ? "🙈" : "👁"}</button></td>
+                  <td className="password-cell">
+                    <span className={visiblePassword && !realPassword ? "password-protected-note" : ""}>{passwordDisplay}</span>
+                    <button
+                      type="button"
+                      className="password-eye-button"
+                      title={realPassword ? (visiblePassword ? "Hide password" : "Show password") : "Password is encrypted. Use reset password to set a new one."}
+                      aria-label={visiblePassword ? "Hide password" : "Show password"}
+                      onClick={() => setVisiblePasswords((current) => ({ ...current, [passwordKey]: !current[passwordKey] }))}
+                    >
+                      {visiblePassword ? "Hide" : "View"}
+                    </button>
+                  </td>
                   <td><button className="reset-password-button" onClick={() => { setResetMessage(""); setResetUser(r); }}>Reset password</button></td>
                 </tr>
               )})}
@@ -2220,6 +2905,37 @@ function DataPage({
                 <button className="primary">Reset Password</button>
               </div>
             </form>
+          </div>
+        )}
+        {showCreateRole && (
+          <div className="confirm-backdrop" onMouseDown={() => setShowCreateRole(false)}>
+            <form className="role-create-dialog" onSubmit={askCreateRole} onMouseDown={(event) => event.stopPropagation()}>
+              <div className="role-create-icon">+</div>
+              <h2>Create New User Role</h2>
+              <p>Create a reusable role for Users & Roles and Role Access Control.</p>
+              <label>
+                Role name
+                <input name="roleName" placeholder="e.g. Supervisor" maxLength={80} autoFocus required />
+                <small>This role will appear automatically in role dropdowns and access control.</small>
+              </label>
+              <div className="role-create-actions">
+                <button type="button" onClick={() => setShowCreateRole(false)}>Cancel</button>
+                <button className="primary">Create</button>
+              </div>
+            </form>
+          </div>
+        )}
+        {pendingRoleName && (
+          <div className="confirm-backdrop role-confirm-backdrop">
+            <div className="role-confirm-dialog">
+              <div className="role-create-icon">✓</div>
+              <h2>Create role?</h2>
+              <p>Are you sure you want to create <b>{pendingRoleName}</b> role?</p>
+              <div className="role-create-actions">
+                <button type="button" onClick={() => setPendingRoleName("")}>No</button>
+                <button type="button" className="primary" onClick={confirmCreateRole}>Yes, create</button>
+              </div>
+            </div>
           </div>
         )}
         {roleSaveNotice && (
@@ -2318,8 +3034,18 @@ function DataPage({
       </>
     );
   }
-  const approvalDetail=page==="Approvals"?selectedCorporateRequest as {request?:Record<string,unknown>;steps?:Record<string,unknown>[];attachments?:Record<string,unknown>[];canAct?:boolean}|null:null;
+  const approvalDetail=page==="Approvals"?selectedCorporateRequest as {request?:Record<string,unknown>;steps?:Record<string,unknown>[];attachments?:Record<string,unknown>[];canAct?:boolean;canAssignVehicle?:boolean}|null:null;
   const approvalRequest=approvalDetail?.request;
+  const approvalDetailFields=corporateRequestDetailFields(approvalRequest);
+  const approvalRequestData=requestDetails(approvalRequest);
+  const approvalAssignedVehicle=(approvalRequestData.assignedVehicle??{}) as Record<string,unknown>;
+  const approvalNeedsVehicle=Boolean(approvalDetail?.canAssignVehicle)&&!approvalAssignedVehicle.id;
+  const assignmentVehicleOptions=availableVehicles.filter(vehicle=>{
+    const query=vehicleAssignmentSearch.trim().toLowerCase();
+    if(!query)return true;
+    return [vehicle.vehicle_plate_number,vehicle.vehicle_name,vehicle.driver_name,vehicle.phone_no,vehicle.vehicle_type]
+      .some(value=>String(value??"").toLowerCase().includes(query));
+  });
   return (
     <>
       <div className="page-title">
@@ -2669,13 +3395,25 @@ function DataPage({
                     <th>Status</th>
                   </>
                 ) : (
-                  <>
-                    <th>{page==="Approvals"?"Submission Date":"Employee"}</th>
-                    <th>{page==="Approvals"?"Requester Name":"Type"}</th>
-                    <th>{page==="Approvals"?"Department":"Request / Description"}</th>
-                    <th>{page==="Approvals"?"Description":"Date"}</th>
-                    <th>{employeeApproval || page==="Approvals" ? "Status" : "Actions"}</th>
-                  </>
+                  page==="Approvals"?(
+                    <>
+                      <th>Type</th>
+                      <th>Request ID</th>
+                      <th>Submission Date</th>
+                      <th>Requester Name</th>
+                      <th>Department</th>
+                      <th>Description</th>
+                      <th>Status</th>
+                    </>
+                  ):(
+                    <>
+                      <th>Employee</th>
+                      <th>Type</th>
+                      <th>Request / Description</th>
+                      <th>Date</th>
+                      <th>{employeeApproval ? "Status" : "Actions"}</th>
+                    </>
+                  )
                 )}
               </tr>
             </thead>
@@ -2738,10 +3476,12 @@ function DataPage({
                     <>
                       {page==="Approvals"?(
                         <>
+                          <td>{requestFormName(r.request_type)}</td>
+                          <td><b>{String(r.source)==="corporate"?corporateRequestId(r):String(r.reference_no??r.id)}</b></td>
                           <td>{new Date(String(r.request_date??r.created_at)).toLocaleDateString()}</td>
                           <td><b>{String(r.first_name)} {String(r.last_name)}</b><small>{String(r.employee_no)}</small></td>
                           <td>{String(r.employee_department??r.department??"—")}</td>
-                          <td className="approval-request-description"><b>{String(r.description??r.title??"—")}</b><small>{requestFormName(r.request_type)} · {String(r.reference_no??r.id)}</small></td>
+                          <td className="approval-request-description"><b>{String(r.description??r.title??"—")}</b></td>
                         </>
                       ):(
                         <>
@@ -2761,14 +3501,14 @@ function DataPage({
                       <td className="table-actions">
                         {employeeApproval || page==="Approvals" ? (
                           <span className={`pill ${String(r.status)}`}>
-                            {String(r.status)}
+                            {page==="Approvals"&&String(r.status)==="pending"&&r.pending_with?`Pending with ${String(r.pending_with)}`:String(r.status)}
                           </span>
                         ) : (
                           <>
-                            <button onClick={(event) =>{event.stopPropagation();String(r.source)==="corporate"?setCorporateConfirmation({id:String(r.id),action:"rejected",name:String(r.reference_no??r.title)}):setConfirmation({id:String(r.id),action:"rejected",name:`${String(r.first_name)} ${String(r.last_name)}`})}}>
+                            <button onClick={(event) =>{event.stopPropagation();if(String(r.source)==="corporate")setCorporateConfirmation({id:String(r.id),action:"rejected",name:String(r.reference_no??r.title)});else setConfirmation({id:String(r.id),action:"rejected",name:`${String(r.first_name)} ${String(r.last_name)}`})}}>
                               Reject
                             </button>
-                            <button onClick={(event) =>{event.stopPropagation();String(r.source)==="corporate"?setCorporateConfirmation({id:String(r.id),action:"approved",name:String(r.reference_no??r.title)}):setConfirmation({id:String(r.id),action:"approved",name:`${String(r.first_name)} ${String(r.last_name)}`})}}>
+                            <button onClick={(event) =>{event.stopPropagation();if(String(r.source)==="corporate")setCorporateConfirmation({id:String(r.id),action:"approved",name:String(r.reference_no??r.title)});else setConfirmation({id:String(r.id),action:"approved",name:`${String(r.first_name)} ${String(r.last_name)}`})}}>
                               Approve
                             </button>
                           </>
@@ -2805,14 +3545,36 @@ function DataPage({
       </section>
       {approvalDetail&&approvalRequest&&<div className="approval-detail-backdrop" onMouseDown={()=>setSelectedCorporateRequest(null)}><section className="approval-detail-modal" onMouseDown={event=>event.stopPropagation()}>
         <header><div><p>APPROVAL REQUEST DETAILS</p><h2>{String(approvalRequest.reference_no??approvalRequest.title??approvalRequest.id)}</h2><span>{String(approvalRequest.first_name??approvalRequest.employee_name??"")} {String(approvalRequest.last_name??"")} · {String(approvalRequest.employee_no??"")}</span></div><button onClick={()=>setSelectedCorporateRequest(null)}>×</button></header>
-        <div className="approval-detail-summary">
-          <div><small>Request Type</small><b>{requestFormName(approvalRequest.request_type)}</b></div><div><small>Submission Date</small><b>{new Date(String(approvalRequest.request_date??approvalRequest.created_at)).toLocaleDateString()}</b></div><div><small>Status</small><b className={`status-text ${String(approvalRequest.status)}`}>{String(approvalRequest.status)}</b></div>
-          {Boolean(approvalRequest.employee_department)&&<div><small>Department</small><b>{String(approvalRequest.employee_department)}</b></div>}{Boolean(approvalRequest.payee)&&<div><small>Pay To</small><b>{String(approvalRequest.payee)}</b></div>}{approvalRequest.amount!=null&&<div><small>Total Amount</small><b>{Number(approvalRequest.amount).toLocaleString()} {String(approvalRequest.currency??"")}</b></div>}
-          <div className="wide"><small>Description</small><b>{String(approvalRequest.purpose??approvalRequest.description??approvalRequest.reason??approvalRequest.title??"—")}</b></div>
+        <div className={`approval-detail-summary ${String(approvalRequest.request_type)==="payment"?"payment-summary-standard":""}`}>
+          <div><small>Request Type</small><b>{requestFormName(approvalRequest.request_type)}</b></div>
+          <div><small>Status</small><b className={`status-text ${String(approvalRequest.status)}`}>{String(approvalRequest.status)}</b></div>
+          {approvalDetailFields.map(field=><div key={field.label} className={field.className==="description"?"wide":undefined}><small>{field.label}</small><b>{field.value}</b></div>)}
         </div>
-        {Boolean(approvalDetail.steps?.length)&&<section className="approval-detail-journey"><h3>Approval Journey</h3>{approvalDetail.steps?.map((step,index)=><article key={String(step.step_order)}><i>{step.action==="approved"?"✓":step.action==="rejected"?"×":index+1}</i><div><b>{String(step.step_name)}</b><span>{String(step.approver_name??"Approver not assigned")}</span>{Boolean(step.acted_at)&&<small>{new Date(String(step.acted_at)).toLocaleString()}</small>}</div><strong className={String(step.action??(Number(step.step_order)===Number(approvalRequest.current_step)?"pending":"upcoming"))}>{String(step.action??(Number(step.step_order)===Number(approvalRequest.current_step)?"Waiting for approval":"Next approver"))}</strong></article>)}</section>}
+        {Boolean(approvalDetail.steps?.length)&&<section className="approval-detail-journey"><h3>Approval Journey</h3>{approvalDetail.steps?.map((step,index)=><article key={String(step.step_order)}><i>{step.action==="approved"?"✓":step.action==="rejected"?"×":index+1}</i><div><b>{String(step.step_name)}</b><span>{String(step.approver_name??"Approver not assigned")}</span>{Boolean(step.acted_at)&&<small>{new Date(String(step.acted_at)).toLocaleString()}</small>}{Boolean(step.comment)&&<small className="approval-step-comment">Comment: {String(step.comment)}</small>}</div><strong className={String(step.action??(Number(step.step_order)===Number(approvalRequest.current_step)?"pending":"upcoming"))}>{String(step.action??(Number(step.step_order)===Number(approvalRequest.current_step)?"Waiting for approval":"Next approver"))}</strong></article>)}</section>}
+        {Boolean(approvalDetail.canAssignVehicle)&&<section className="vehicle-assignment-panel">
+          <h3>Assign Vehicle</h3>
+          <p>Search and select a free internal vehicle before approving this request.</p>
+          <div className="vehicle-assignment-controls">
+            <div className="vehicle-picker">
+              <label htmlFor="vehicle-assignment-search">Search vehicle</label>
+              <input id="vehicle-assignment-search" type="search" value={vehiclePickerOpen?vehicleAssignmentSearch:selectedAssignmentVehicleLabel} onFocus={()=>{setVehicleAssignmentSearch("");setVehiclePickerOpen(true)}} onClick={()=>setVehiclePickerOpen(true)} onChange={event=>{setVehicleAssignmentSearch(event.target.value);setVehiclePickerOpen(true)}} placeholder="Search plate number, vehicle, driver or phone" autoComplete="off" role="combobox" aria-expanded={vehiclePickerOpen} aria-controls="vehicle-assignment-results"/>
+              {vehiclePickerOpen&&<div id="vehicle-assignment-results" className="vehicle-picker-results" role="listbox" aria-label="Free vehicles">
+                {assignmentVehicleOptions.length?assignmentVehicleOptions.map(vehicle=>{
+                  const selected=String(vehicle.id)===selectedAssignmentVehicleId;
+                  return <button key={String(vehicle.id)} type="button" role="option" aria-selected={selected} className={`vehicle-picker-option${selected?" selected":""}`} onClick={()=>{setSelectedAssignmentVehicleId(String(vehicle.id));setSelectedAssignmentVehicleLabel([vehicle.vehicle_plate_number,vehicle.vehicle_name].map(value=>String(value??"").trim()).filter(Boolean).join(" · "));setVehicleAssignmentSearch("");setVehiclePickerOpen(false)}}>
+                    <span className="vehicle-option-primary"><b>{String(vehicle.vehicle_plate_number??"No plate number")}</b><span>{String(vehicle.vehicle_name??"Unnamed vehicle")}</span></span>
+                    <span className="vehicle-option-secondary"><span>Driver: {String(vehicle.driver_name??"-")}</span><span>Phone: {String(vehicle.phone_no??"-")}</span></span>
+                  </button>;
+                }):<div className="vehicle-picker-empty">No free vehicles match your search.</div>}
+              </div>}
+            </div>
+            <button type="button" className="assign-vehicle-button" disabled={!selectedAssignmentVehicleId||assigningVehicle} onClick={assignVehicleToRequest}>{assigningVehicle?"Assigning…":"Assign Vehicle"}</button>
+          </div>
+          {assignmentNotice&&<small className="assignment-notice">{assignmentNotice}</small>}
+        </section>}
         {Boolean(approvalDetail.attachments?.length)&&<section className="approval-detail-attachments"><h3>Attachments</h3>{approvalDetail.attachments?.map(file=><button key={String(file.id)} onClick={()=>openCorporateAttachment(approvalRequest.id,file)}>↗ <span><b>{String(file.original_name)}</b><small>{String(file.mime_type)} · {(Number(file.file_size)/1024).toFixed(1)} KB</small></span></button>)}</section>}
-        {(approvalDetail.canAct||(!employeeApproval&&String(approvalRequest.status)==="pending"))&&<footer><button className="reject" onClick={()=>String(approvalRequest.source??(approvalRequest.reference_no?"corporate":"hr"))==="corporate"?setCorporateConfirmation({id:String(approvalRequest.id),action:"rejected",name:String(approvalRequest.reference_no)}):setConfirmation({id:String(approvalRequest.id),action:"rejected",name:String(approvalRequest.title)})}>Reject</button><button className="approve" onClick={()=>String(approvalRequest.source??(approvalRequest.reference_no?"corporate":"hr"))==="corporate"?setCorporateConfirmation({id:String(approvalRequest.id),action:"approved",name:String(approvalRequest.reference_no)}):setConfirmation({id:String(approvalRequest.id),action:"approved",name:String(approvalRequest.title)})}>Approve</button></footer>}
+        {Boolean(approvalDetail.canAct)&&<label className="approval-comment-field"><span>Approver Comment</span><textarea rows={3} value={corporateComment} onChange={event=>setCorporateComment(event.target.value)} placeholder="Add a comment (optional)"/></label>}
+        {(approvalDetail.canAct||(!employeeApproval&&String(approvalRequest.status)==="pending"))&&<footer><button className="reject" onClick={()=>String(approvalRequest.source??(approvalRequest.reference_no?"corporate":"hr"))==="corporate"?setCorporateConfirmation({id:String(approvalRequest.id),action:"rejected",name:String(approvalRequest.reference_no)}):setConfirmation({id:String(approvalRequest.id),action:"rejected",name:String(approvalRequest.title)})}>Reject</button><button className="approve" disabled={approvalNeedsVehicle} title={approvalNeedsVehicle?"Assign a vehicle before approving":undefined} onClick={()=>String(approvalRequest.source??(approvalRequest.reference_no?"corporate":"hr"))==="corporate"?setCorporateConfirmation({id:String(approvalRequest.id),action:"approved",name:String(approvalRequest.reference_no)}):setConfirmation({id:String(approvalRequest.id),action:"approved",name:String(approvalRequest.title)})}>Approve</button></footer>}
       </section></div>}
       {confirmation && (
         <ConfirmDialog
@@ -3425,7 +4187,7 @@ function App() {
                   <i>
                     <NavIcon name="Users & Roles" />
                   </i>
-                  {label("Users & Roles")}
+                  {language === "Myanmar" ? label("Users & Roles") : "Users Management"}
                   <span className={`chevron ${usersOpen ? "open" : ""}`}>
                     <ChevronIcon />
                     ⌄

@@ -1,0 +1,67 @@
+.assigned-vehicle-information {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  padding: 16px 18px;
+  border: 1px solid #ddd8ff;
+  border-radius: 12px;
+  background: #f8f7ff;
+}
+
+.assigned-vehicle-information > h3 {
+  margin: 0 0 14px;
+  color: #5147c7;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.assigned-vehicle-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.assigned-vehicle-grid > div {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #e2e5ee;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.assigned-vehicle-grid small {
+  display: block;
+  color: #6f7c92;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.assigned-vehicle-grid b {
+  display: block;
+  margin-top: 7px;
+  color: #151d2f;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .assigned-vehicle-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .assigned-vehicle-information {
+    padding: 14px;
+  }
+
+  .assigned-vehicle-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  .assigned-vehicle-information {
+    break-inside: avoid;
+  }
+}

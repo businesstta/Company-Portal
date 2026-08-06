@@ -1,0 +1,139 @@
+.ferry-management-page{display:grid;gap:18px;min-width:0}.ferry-actions{display:flex;flex-wrap:wrap;gap:9px;justify-content:flex-end}.ferry-actions button{min-height:40px;padding:0 15px;border:1px solid #ddd9f2;border-radius:10px;background:#fff;color:#403975;font-weight:700}.ferry-actions .primary,.ferry-vehicle-form .primary{background:#6554dc;color:#fff;border-color:#6554dc}.ferry-form{display:grid;gap:18px}.ferry-form fieldset{border:1px solid #e5e2f2;border-radius:14px;padding:17px}.ferry-form legend{padding:0 8px;color:#554aa0;font-size:13px;font-weight:800}.ferry-form .form-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.ferry-form textarea{min-height:80px;resize:vertical}.ferry-form .ferry-wide{grid-column:span 2}.ferry-form input[readonly]{background:#f6f5fa;color:#68637a}.ferry-filter{display:flex;align-items:center;gap:16px;padding:18px}.ferry-filter>div{margin-right:auto}.ferry-filter h2,.ferry-filter p{margin:0}.ferry-filter p{margin-top:4px;color:#777184}.ferry-filter input{width:min(420px,45vw);min-height:42px;border:1px solid #ddd9ea;border-radius:10px;padding:0 13px}.ferry-filter button{min-height:42px;border:0;border-radius:10px;padding:0 16px}.ferry-table-card{min-width:0;overflow:hidden}.ferry-table-scroll{overflow-x:auto;overflow-y:visible;padding-bottom:8px}.ferry-table-scroll table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0}.ferry-table-scroll th{min-width:150px;white-space:normal;background:#f7f6fc}.ferry-table-scroll td{max-width:260px;white-space:normal;word-break:break-word}.ferry-table-scroll th:first-child,.ferry-table-scroll td:first-child{position:sticky;left:0;z-index:1;background:#fff}.ferry-table-scroll th:first-child{z-index:2;background:#f7f6fc}.ferry-row-actions{display:flex;gap:7px;position:sticky;right:0;background:#fff}.ferry-row-actions button{border:0;border-radius:8px;padding:7px 11px}.ferry-row-actions .danger,.ferry-vehicle-list .danger{color:#b42318;background:#fff0ee}.ferry-pagination{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 18px;border-top:1px solid #eeeaf7;color:#6e687b}.ferry-pagination>span:first-child{margin-right:auto}.ferry-pagination label{display:flex;align-items:center;gap:7px}.ferry-pagination select,.ferry-pagination button{min-height:34px;border:1px solid #ddd9ea;border-radius:8px;background:#fff;padding:0 10px}.ferry-modal-backdrop{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:24px;background:rgba(28,25,45,.55);backdrop-filter:blur(3px)}.ferry-modal{width:min(1180px,96vw);max-height:90vh;overflow:auto;border-radius:18px;background:#fff;box-shadow:0 28px 80px rgba(25,20,55,.28)}.ferry-modal>header{position:sticky;top:0;z-index:3;display:flex;justify-content:space-between;align-items:flex-start;padding:22px 24px;border-bottom:1px solid #ece9f5;background:#fff}.ferry-modal header p,.ferry-modal header h2,.ferry-modal header span{margin:0}.ferry-modal header p{color:#6554dc;font-size:12px;font-weight:800}.ferry-modal header h2{margin:4px 0}.ferry-modal header span{color:#777184}.ferry-modal header>button{border:0;background:#f3f1f8;border-radius:9px;width:36px;height:36px;font-size:22px}.ferry-vehicle-form{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:13px;padding:20px 24px;background:#faf9fd}.ferry-vehicle-form label{display:grid;gap:6px;font-size:12px;font-weight:700;color:#504a5d}.ferry-vehicle-form input{min-width:0;min-height:40px;border:1px solid #ddd9ea;border-radius:9px;padding:0 11px}.ferry-vehicle-form>div{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px}.ferry-vehicle-form button,.ferry-vehicle-list button{min-height:36px;border:1px solid #ddd9ea;border-radius:8px;background:#fff;padding:0 12px}.ferry-vehicle-list{overflow:auto;margin:0 24px 24px;border:1px solid #ece9f5;border-radius:12px}.ferry-vehicle-list table{min-width:900px;width:100%;border-collapse:collapse}.ferry-vehicle-list th,.ferry-vehicle-list td{padding:12px;border-bottom:1px solid #efedf6;text-align:left}.ferry-vehicle-list th{background:#f7f6fb;font-size:12px}.ferry-vehicle-list td:last-child{display:flex;gap:7px}@media(max-width:900px){.ferry-form .form-grid{grid-template-columns:1fr}.ferry-form .ferry-wide{grid-column:auto}.ferry-filter{align-items:stretch;flex-direction:column}.ferry-filter input{width:100%}.ferry-vehicle-form{grid-template-columns:1fr 1fr}.ferry-pagination{flex-wrap:wrap}.ferry-pagination>span:first-child{width:100%;margin:0}}
+
+/* Ferry vehicle manager dialog */
+.ferry-modal-backdrop{padding:32px;background:rgba(24,22,40,.48);backdrop-filter:blur(5px)}
+.ferry-modal{display:flex;flex-direction:column;width:min(1440px,calc(100vw - 48px));height:min(920px,calc(100vh - 48px));max-height:calc(100vh - 48px);overflow:hidden;border:1px solid rgba(255,255,255,.75);border-radius:22px;box-shadow:0 30px 90px rgba(31,27,58,.32)}
+.ferry-modal>header{height:auto!important;min-height:112px;box-sizing:border-box;padding:26px 30px 22px;border-bottom:1px solid #ebe8f4}
+.ferry-modal header p{letter-spacing:.08em}
+.ferry-modal header h2{margin:6px 0 4px;font-size:25px;letter-spacing:-.02em}
+.ferry-modal header span{font-size:14px}
+.ferry-modal header>button{display:grid;place-items:center;width:38px;height:38px;border:1px solid #ebe8f3;background:#f7f5fb;color:#4d465d;transition:.18s ease}
+.ferry-modal header>button:hover{transform:rotate(4deg);background:#ede9f8;color:#302958}
+.ferry-vehicle-form{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px 18px;padding:24px 30px 26px;border-bottom:1px solid #ece9f5;background:linear-gradient(180deg,#faf9fd 0%,#f8f7fc 100%)}
+.ferry-vehicle-form-title{display:grid!important;justify-content:start!important;gap:3px!important;margin-bottom:2px}
+.ferry-vehicle-form-title strong{font-size:15px;color:#2f2a3e}
+.ferry-vehicle-form-title span{font-size:12px;color:#858092;font-weight:500}
+.ferry-vehicle-form label{gap:8px;font-size:12px;letter-spacing:.01em}
+.ferry-vehicle-form input{min-height:44px;border-color:#dcd8e9;border-radius:10px;background:#fff;font-size:14px;outline:none;transition:border-color .18s,box-shadow .18s}
+.ferry-vehicle-form input:focus{border-color:#7464df;box-shadow:0 0 0 3px rgba(101,84,220,.11)}
+.ferry-vehicle-form-actions{align-self:end;grid-column:3!important;display:flex!important;justify-content:flex-end!important;padding-top:20px}
+.ferry-vehicle-form-actions button{min-height:42px;padding:0 16px;border:1px solid #dcd8e8;border-radius:10px;background:#fff;font-weight:700}
+.ferry-vehicle-form-actions .primary{box-shadow:0 7px 16px rgba(101,84,220,.2)}
+.ferry-vehicle-list-heading{display:flex;align-items:center;justify-content:space-between;padding:24px 30px 14px}
+.ferry-vehicle-list-heading h3,.ferry-vehicle-list-heading p{margin:0}
+.ferry-vehicle-list-heading h3{font-size:16px;color:#302b3d}
+.ferry-vehicle-list-heading p{margin-top:4px;font-size:12px;color:#8a8494}
+.ferry-vehicle-excel-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px}
+.ferry-vehicle-excel-actions button{min-height:34px;padding:0 10px;border:1px solid #ddd9ea;border-radius:8px;background:#fff;color:#514a70;font-family:inherit;font-size:12px;font-weight:700}
+.ferry-vehicle-excel-actions button:hover{border-color:#bdb5e8;background:#f7f5fd;color:#5548bc}
+.ferry-vehicle-excel-actions>span{padding:6px 10px;border-radius:999px;background:#f0edfb;color:#584bc1;font-size:12px;font-weight:800;white-space:nowrap}
+.ferry-vehicle-notice{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;margin:16px 30px 0;padding:11px 13px;border:1px solid #dcd5f5;border-radius:10px;background:#f6f3ff;color:#4f438f;font-size:12px;font-weight:700;white-space:pre-wrap}
+.ferry-vehicle-notice button{flex:0 0 auto;border:0;background:transparent;color:#6554dc;font-size:17px;line-height:1}
+.ferry-vehicle-list{flex:1 1 260px;min-height:150px;max-height:360px;overflow:auto;margin:0 30px 30px;border-color:#e8e5f0;border-radius:14px}
+.ferry-modal>header,.ferry-vehicle-form,.ferry-vehicle-notice,.ferry-vehicle-list-heading,.ferry-vehicle-bulk-toolbar{flex:0 0 auto}
+.ferry-vehicle-list th,.ferry-vehicle-list td{padding:13px 14px}
+.ferry-vehicle-list th{background:#f8f7fb;color:#4d475a;font-size:11px;letter-spacing:.02em;text-transform:uppercase}
+.ferry-vehicle-list tr.selected td{background:#f7f5ff}
+.ferry-vehicle-list .ferry-vehicle-check{width:42px;min-width:42px;padding-left:14px;padding-right:6px;text-align:center}
+.ferry-vehicle-check input{width:16px;height:16px;margin:0;accent-color:#6554dc;cursor:pointer}
+.ferry-number-chip{display:inline-flex;padding:5px 8px;border-radius:7px;background:#f1eefb;color:#4e42ad;font-size:12px;font-weight:800}
+.ferry-vehicle-bulk-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 30px 12px;padding:10px 12px 10px 15px;border:1px solid #dcd5f5;border-radius:11px;background:#f7f5ff;color:#50458b;font-size:13px}
+.ferry-vehicle-bulk-toolbar>div{display:flex;gap:7px}
+.ferry-vehicle-bulk-toolbar button{min-height:34px;padding:0 11px;border:1px solid #dcd8e8;border-radius:8px;background:#fff;font-family:inherit;font-size:12px;font-weight:700}
+.ferry-vehicle-bulk-toolbar .danger{border-color:#f1cbc7;background:#fff0ee;color:#b42318}
+.ferry-vehicle-empty{display:grid;justify-items:center;gap:5px;padding:34px 20px 38px;color:#928ca0}
+.ferry-vehicle-empty>div{display:grid;place-items:center;width:42px;height:42px;margin-bottom:4px;border-radius:12px;background:#f1eef9;color:#6759cf;font-size:19px}
+.ferry-vehicle-empty strong{color:#514b5e;font-size:14px}
+.ferry-vehicle-empty span{font-size:12px}
+@media(max-width:760px){.ferry-modal-backdrop{padding:12px}.ferry-modal{width:100%;height:auto;max-height:calc(100vh - 24px)}.ferry-modal>header,.ferry-vehicle-form,.ferry-vehicle-list-heading{padding-left:20px;padding-right:20px}.ferry-vehicle-form{grid-template-columns:1fr;max-height:46vh;overflow-y:auto}.ferry-vehicle-form-actions{grid-column:1!important}.ferry-vehicle-list-heading{align-items:flex-start;flex-direction:column;gap:12px}.ferry-vehicle-excel-actions{width:100%;justify-content:flex-start;flex-wrap:wrap}.ferry-vehicle-notice,.ferry-vehicle-bulk-toolbar{margin-left:20px;margin-right:20px}.ferry-vehicle-bulk-toolbar{align-items:flex-start;flex-direction:column}.ferry-vehicle-list{min-height:130px;margin-left:20px;margin-right:20px}}
+
+/* Consistent Ferry page controls and bottom-positioned table scrollbar */
+.ferry-actions{align-items:flex-start}
+.ferry-actions button,.ferry-pagination button,.ferry-pagination select,.ferry-vehicle-form button,.ferry-vehicle-list button,.ferry-modal header>button{font-family:inherit;font-size:13px;font-weight:700;line-height:1}
+.ferry-actions button{height:42px;min-height:42px}
+.ferry-primary-actions{display:grid;gap:8px}
+.ferry-primary-actions .primary{min-width:148px;box-shadow:0 6px 15px rgba(101,84,220,.18)}
+.ferry-table-scroll{position:relative;min-height:clamp(360px,48vh,520px);padding-bottom:0}
+.ferry-record-empty{position:sticky;left:0;display:grid;width:100%;min-height:clamp(270px,39vh,430px);align-content:center;justify-items:center;gap:5px;color:#918b9d}
+.ferry-record-empty>div{display:grid;place-items:center;width:42px;height:42px;margin-bottom:5px;border-radius:12px;background:#f1eef9;color:#6554dc;font-size:18px}
+.ferry-record-empty strong{color:#504a5d;font-size:14px}
+.ferry-record-empty span{font-size:12px}
+.ferry-search-select{position:relative;min-width:0}
+.ferry-search-select.open{z-index:30}
+.ferry-search-select>label{display:grid;gap:7px}
+.ferry-search-control{position:relative}
+.ferry-search-control input{box-sizing:border-box;width:100%;padding-right:44px!important}
+.ferry-search-control button{position:absolute!important;top:50%!important;right:6px!important;display:grid!important;box-sizing:border-box!important;width:32px!important;min-width:32px!important;max-width:32px!important;height:32px!important;min-height:32px!important;margin:0!important;padding:0!important;transform:translateY(-50%);place-items:center;border:0!important;border-radius:8px!important;background:transparent!important;color:#716b80!important;cursor:pointer}
+.ferry-search-control button:hover{background:#f2f0f8!important;color:#5045a1!important}
+.ferry-search-control button span{display:block;width:7px;height:7px;margin-top:-4px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg);transition:transform .16s ease,margin .16s ease}
+.ferry-search-select.open .ferry-search-control button span{margin-top:4px;transform:rotate(225deg)}
+.ferry-search-select.open .ferry-search-control input{border-color:#6554dc;box-shadow:0 0 0 3px rgba(101,84,220,.11)}
+.ferry-search-options{position:absolute;top:calc(100% + 7px);left:0;right:0;z-index:40;max-height:270px;overflow-y:auto;padding:5px;border:1px solid #d9d5e5;border-radius:10px;background:#fff;box-shadow:0 14px 34px rgba(39,34,66,.18)}
+.ferry-search-options>button{display:grid;width:100%;gap:2px;padding:9px 11px;border:0;border-radius:6px;background:#fff;color:#3e3948;text-align:left;cursor:pointer}
+.ferry-search-options>button:hover{background:#f2effd;color:#4e42ad}
+.ferry-search-options>button.selected{background:#6554dc;color:#fff}
+.ferry-search-options strong{overflow:hidden;font-size:13px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}
+.ferry-search-options span{overflow:hidden;color:#817b8d;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+.ferry-search-options>button.selected span{color:#e8e4ff}
+.ferry-search-empty{padding:18px 12px;color:#8b8595;font-size:12px;text-align:center}
+@media(max-width:900px){.ferry-actions{width:100%;justify-content:flex-start}.ferry-primary-actions{display:flex;flex-wrap:wrap}.ferry-table-scroll{min-height:380px}.ferry-record-empty{min-height:290px}}
+@media(max-width:560px){.ferry-actions>button,.ferry-primary-actions,.ferry-primary-actions button{width:100%}.ferry-primary-actions{display:grid}.ferry-pagination{justify-content:center}.ferry-pagination>span:first-child{width:100%;text-align:center}}
+
+/* Full-width long-text fields */
+.ferry-form .form-grid>.ferry-wide{grid-column:1/-1;width:100%;min-width:0}
+.ferry-form .ferry-wide textarea{display:block;width:100%;min-height:104px;box-sizing:border-box;padding:12px 14px;border:1px solid #ddd9ea;border-radius:10px;background:#fff;font:inherit;line-height:1.5;resize:vertical;outline:none}
+.ferry-form .ferry-wide textarea:focus{border-color:#6554dc;box-shadow:0 0 0 3px rgba(101,84,220,.11)}
+
+/* Custom delete confirmation dialog */
+.ferry-confirm-backdrop{position:fixed;inset:0;z-index:1200;display:grid;place-items:center;padding:20px;background:rgba(35,38,51,.48);backdrop-filter:blur(2px)}
+.ferry-confirm-dialog{box-sizing:border-box;width:min(430px,calc(100vw - 32px));padding:30px 28px 28px;border:1px solid #ebe8ef;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(26,29,43,.3);text-align:center;animation:ferry-confirm-enter .16s ease-out}
+.ferry-confirm-icon{display:grid;width:54px;height:54px;margin:0 auto 18px;place-items:center;border-radius:50%;background:#ffe8ec;color:#d5445c;font-size:27px;font-weight:800;line-height:1}
+.ferry-confirm-dialog h2{margin:0;color:#232735;font-size:21px;letter-spacing:-.02em}
+.ferry-confirm-dialog p{margin:9px 0 24px;color:#858b99;font-size:13px;line-height:1.5}
+.ferry-confirm-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ferry-confirm-actions button{min-height:44px;border:1px solid #d9dde7;border-radius:9px;background:#fff;color:#252936;font-family:inherit;font-size:13px;font-weight:750;cursor:pointer}
+.ferry-confirm-actions .danger{border-color:#d5445c;background:#d5445c;color:#fff}
+.ferry-confirm-actions button:hover:not(:disabled){background:#f7f7fa}
+.ferry-confirm-actions .danger:hover:not(:disabled){border-color:#c63750;background:#c63750}
+.ferry-confirm-actions button:disabled{cursor:wait;opacity:.65}
+@keyframes ferry-confirm-enter{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(max-width:480px){.ferry-confirm-dialog{padding:26px 20px 22px}.ferry-confirm-actions{grid-template-columns:1fr}}
+
+/* Save result dialog */
+.ferry-status-backdrop{position:fixed;inset:0;z-index:1250;display:grid;place-items:center;padding:20px;background:rgba(35,38,51,.48);backdrop-filter:blur(2px)}
+.ferry-status-dialog{box-sizing:border-box;width:min(420px,calc(100vw - 32px));padding:30px 28px 26px;border:1px solid #ebe8ef;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(26,29,43,.3);text-align:center;animation:ferry-confirm-enter .16s ease-out}
+.ferry-status-icon{display:grid;width:56px;height:56px;margin:0 auto 18px;place-items:center;border-radius:50%;font-size:26px;font-weight:800}
+.ferry-status-dialog.success .ferry-status-icon{background:#e3f8ed;color:#1f9d62}.ferry-status-dialog.error .ferry-status-icon{background:#ffe8ec;color:#d5445c}
+.ferry-status-dialog h2{margin:0;color:#232735;font-size:21px}.ferry-status-dialog p{margin:9px 0 23px;color:#858b99;font-size:13px;line-height:1.55}
+.ferry-status-dialog>button{width:100%;min-height:44px;border:0;border-radius:9px;background:#6554dc;color:#fff;font-family:inherit;font-size:13px;font-weight:750;cursor:pointer}
+.ferry-status-dialog.error>button{background:#d5445c}
+
+/* Ferry record filters, sorting and contained table scrolling */
+.ferry-filter{display:grid;gap:16px;padding:20px 22px}
+.ferry-filter>.ferry-filter-heading,.ferry-filter>.ferry-filter-grid{box-sizing:border-box;width:100%;margin-right:0}
+.ferry-filter-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.ferry-filter-heading h2,.ferry-filter-heading p{margin:0}.ferry-filter-heading p{margin-top:4px;color:#777184;font-size:13px}
+.ferry-filter-heading>button{min-height:36px;padding:0 14px;border:1px solid #ddd9ea;border-radius:7px;background:#fff;color:#514b61;font-family:inherit;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
+.ferry-filter-heading>button:hover{border-color:#bfb8db;background:#f8f7fc;color:#5145a4}
+.ferry-filter-grid{display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:13px 14px}
+.ferry-filter-grid label{display:grid;gap:7px;min-width:0;color:#565061;font-size:11px;font-weight:750}
+.ferry-filter-grid input,.ferry-filter-grid select,.ferry-filter-grid .ferry-sort-direction{box-sizing:border-box;width:100%;min-width:0;min-height:42px;border:1px solid #dcd8e8;border-radius:7px;background:#fff;padding:0 12px;color:#373243;font-family:inherit;font-size:13px;outline:none}
+.ferry-filter-grid input:focus,.ferry-filter-grid select:focus{border-color:#6554dc;box-shadow:0 0 0 3px rgba(101,84,220,.1)}
+.ferry-filter-grid input::placeholder{color:#aaa5b2}.ferry-filter-grid .ferry-sort-direction{color:#514a70;font-weight:700;text-align:left;cursor:pointer}
+.ferry-table-scroll{max-height:clamp(440px,60vh,720px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.ferry-table-scroll th{position:sticky;top:0;z-index:4}
+.ferry-table-scroll th:first-child{top:0;z-index:6}
+.ferry-table-scroll th:last-child{right:0;z-index:5}
+.ferry-table-scroll td.ferry-row-actions{align-items:center;gap:9px;padding:11px 14px}
+.ferry-row-actions button{min-height:34px;padding:7px 13px;white-space:nowrap}
+.ferry-record-bulk-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:14px 18px 0;padding:10px 12px 10px 15px;border:1px solid #dcd5f5;border-radius:9px;background:#f7f5ff;color:#50458b;font-size:13px}
+.ferry-record-bulk-toolbar>div{display:flex;gap:8px}
+.ferry-record-bulk-toolbar button{min-height:34px;padding:0 12px;border:1px solid #dcd8e8;border-radius:7px;background:#fff;font-family:inherit;font-size:12px;font-weight:700}
+.ferry-record-bulk-toolbar .danger{border-color:#f1cbc7;background:#fff0ee;color:#b42318}
+.ferry-record-check{width:46px!important;min-width:46px!important;max-width:46px!important;padding-left:14px!important;padding-right:8px!important;text-align:center!important}
+.ferry-record-check input{width:16px;height:16px;margin:0;accent-color:#6554dc;cursor:pointer}
+.ferry-table-scroll tr.ferry-record-selected td{background:#f7f5ff}
+.ferry-table-scroll tr.ferry-record-selected td:first-child{background:#f7f5ff}
+@media(max-width:1180px){.ferry-filter-grid{grid-template-columns:repeat(3,minmax(170px,1fr))}}
+@media(max-width:820px){.ferry-filter-grid{grid-template-columns:repeat(2,minmax(150px,1fr))}}
+@media(max-width:560px){.ferry-filter-heading{align-items:stretch;flex-direction:column}.ferry-filter-heading>button{width:100%}.ferry-filter-grid{grid-template-columns:1fr}.ferry-record-bulk-toolbar{align-items:flex-start;flex-direction:column}.ferry-record-bulk-toolbar>div{width:100%}.ferry-record-bulk-toolbar button{flex:1}}

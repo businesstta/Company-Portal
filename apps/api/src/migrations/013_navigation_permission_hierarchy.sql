@@ -8,7 +8,7 @@ WITH mappings(child_key,parent_key) AS (
     ('Human Resource','Employees'),('Payment Request Form','Payment Request'),
     ('Advance Clearance Request Form','Advance Clearance'),('Material Request Form','Corporate'),
     ('Service Request Form','Corporate'),('Stationary Request Form','Corporate'),('Vehicle Request Form','Corporate'),
-    ('Vehicle Management','Fleet Management'),('HR Management','Reports'),('Asset Management','Reports'),
+    ('Vehicle Management (Internal)','Fleet Management'),('Vehicle Management (Maintenance)','Fleet Management'),('Ferry Management','Fleet Management'),('HR Management','Reports'),('Asset Management','Reports'),
     ('Corporate Services','Reports'),('Attendance Report','Reports'),('Leave Report','Reports'),
     ('Overtime Report','Reports'),('Appraisals Report','Reports'),('Travelling Request Report','Reports'),
     ('Admin Asset Report','Reports'),('IT Asset Report','Reports'),('Payment Request Report','Reports'),
