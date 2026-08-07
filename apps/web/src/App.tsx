@@ -12,6 +12,7 @@ import "./vehicle-management.css";
 import "./approval-workflow.css";
 import "./assigned-vehicle.css";
 import FerryManagement from "./FerryManagement";
+import ITAssetManagement from "./ITAssetManagement";
 import "./select-design.css";
 
 const nav = [
@@ -44,6 +45,7 @@ const corporateSubmenus = [
   "Vehicle Request Form",
 ];
 const fleetSubmenus = ["Vehicle Management (Internal)", "Vehicle Management (Maintenance)", "Ferry Management"];
+const informationTechnologySubmenus = ["IT Asset Management", "IT Asset Transfer Form", "IT Asset Write Out Form"];
 const vehicleManagementPages = ["Vehicle Management (Internal)", "Vehicle Management (Maintenance)"];
 const isVehicleManagementPage = (value: string) => vehicleManagementPages.includes(value);
 const vehicleCategoryForPage = (value: string) => value === "Vehicle Management (Maintenance)" ? "maintenance" : "internal";
@@ -89,6 +91,7 @@ const permissionMenuItems = [
   { key: "Fleet Management", level: 0 },
   ...fleetSubmenus.map((key) => ({ key, level: 1 })),
   { key: "Information Technology", level: 0 },
+  ...informationTechnologySubmenus.map((key) => ({ key, level: 1 })),
   { key: "Admin", level: 0 },
   { key: "Reports", level: 0 },
   ...reportGroups.flatMap((group) => [
@@ -345,6 +348,23 @@ function VehicleDeleteDialog({
       </section>
     </div>
   );
+}
+
+function EmployeeDeleteDialog({ count, deleting, onCancel, onConfirm }: { count: number; deleting: boolean; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <div className="confirm-backdrop" onMouseDown={() => !deleting && onCancel()}>
+      <section className="confirm-dialog vehicle-delete-dialog" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="confirm-icon reject">!</div>
+        <h2>Delete selected employees?</h2>
+        <p>Are you sure you want to delete {count} selected employee{count === 1 ? "" : "s"}?</p>
+        <div><button disabled={deleting} onClick={onCancel}>Cancel</button><button className="confirm-reject" disabled={deleting} onClick={onConfirm}>{deleting ? "Deleting…" : "Yes, delete"}</button></div>
+      </section>
+    </div>
+  );
+}
+
+function EmployeeFullSyncDialog({ fileName, importing, onCancel, onConfirm }: { fileName: string; importing: boolean; onCancel: () => void; onConfirm: () => void }) {
+  return <div className="confirm-backdrop" onMouseDown={() => !importing && onCancel()}><section className="confirm-dialog employee-sync-dialog" onMouseDown={(event) => event.stopPropagation()}><div className="confirm-icon reject">!</div><h2>Run Full Employee Sync?</h2><p><b>{fileName}</b> will become the active employee list. Existing UUIDs and approval links will be preserved. Employees missing from the file may be made inactive, except protected approvers, managers and your signed-in account.</p><div><button disabled={importing} onClick={onCancel}>Cancel</button><button className="confirm-approve" disabled={importing} onClick={onConfirm}>{importing ? "Syncing…" : "Yes, run full sync"}</button></div></section></div>;
 }
 
 function SaveEmployeeDialog({
@@ -765,12 +785,19 @@ function DataPage({
   const [masterConfirmation, setMasterConfirmation] =
     useState<MasterConfirmation | null>(null);
   const [importResult, setImportResult] = useState("");
+  const [employeeImportMode, setEmployeeImportMode] = useState<"merge" | "full_sync">("merge");
+  const [pendingEmployeeImportFile, setPendingEmployeeImportFile] = useState<File | null>(null);
+  const [employeeImporting, setEmployeeImporting] = useState(false);
   const [employeeFilters, setEmployeeFilters] = useState<EmployeeFilters>({
     employeeNo: "", name: "", position: "", department: "",
     organization: "", projectLocation: "", reportTo: "", sort: "newer",
   });
   const [employeePage, setEmployeePage] = useState(1);
   const [employeePageSize, setEmployeePageSize] = useState(25);
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+  const [showEmployeeDeleteConfirmation, setShowEmployeeDeleteConfirmation] = useState(false);
+  const [deletingEmployees, setDeletingEmployees] = useState(false);
+  const [employeeNotice, setEmployeeNotice] = useState("");
   const [resetUser, setResetUser] = useState<Record<string, unknown> | null>(null);
   const [resetMessage, setResetMessage] = useState("");
   const [roleSaveNotice, setRoleSaveNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -910,6 +937,8 @@ function DataPage({
   const tableRows = page === "Employees"
     ? displayRows.slice((currentEmployeePage - 1) * employeePageSize, currentEmployeePage * employeePageSize)
     : displayRows;
+  const filteredEmployeeIds = page === "Employees" ? displayRows.map((row) => String(row.id)).filter(Boolean) : [];
+  const allFilteredEmployeesSelected = filteredEmployeeIds.length > 0 && filteredEmployeeIds.every((id) => selectedEmployeeIds.includes(id));
   const filteredUserRows = page === "Users & Roles"
     ? listRows.filter((row) => {
         const includes = (value: unknown, search: string) => String(value ?? "").toLowerCase().includes(search.trim().toLowerCase());
@@ -1007,6 +1036,9 @@ function DataPage({
     setShowVehicleDeleteConfirmation(false);
     setVehicleNotice("");
     setVehiclePage(1);
+  }, [page]);
+  useEffect(() => {
+    setSelectedEmployeeIds([]); setShowEmployeeDeleteConfirmation(false); setEmployeeNotice(""); setEmployeePage(1);
   }, [page]);
   useEffect(()=>{if(page!=="Announcements"||!selectedAnnouncementId||!Array.isArray(rows))return;const match=(rows as Record<string,unknown>[]).find(row=>String(row.id)===selectedAnnouncementId);if(match)setSelectedAnnouncement(match)},[page,rows,selectedAnnouncementId]);
   useEffect(() => {
@@ -1293,29 +1325,18 @@ function DataPage({
     a.click();
     URL.revokeObjectURL(url);
   };
-  const importExcel = async (file?: File) => {
+  const importExcel = async (file?: File, mode: "merge" | "full_sync" = "merge") => {
     if (!file) return;
-    const form = new FormData();
-    form.append("file", file);
-    setImportResult("Importing…");
-    const r = await fetch(`${API}/employees/import`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: form,
-    });
+    const form = new FormData(); form.append("file", file);
+    setEmployeeImporting(true); setImportResult(mode === "full_sync" ? "Running safe full sync…" : "Importing…");
+    const r = await fetch(`${API}/employees/import?mode=${mode}`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
     const result = await r.json();
-    if (!r.ok) {
-      setImportResult(result.error ?? "Import failed");
-      return;
-    }
-    const errorDetails = Array.isArray(result.errors)
-      ? result.errors.slice(0, 8).map((error: { row: number; message: string }) => `Row ${error.row}: ${error.message}`).join("\n")
-      : "";
-    setImportResult(
-      `Imported ${result.imported}, updated ${result.updated}, skipped ${result.skipped}${errorDetails ? `\n${errorDetails}` : ""}`,
-    );
-    load();
-    if (fileInput.current) fileInput.current.value = "";
+    if (!r.ok) { setImportResult(result.error ?? "Import failed"); setEmployeeImporting(false); return; }
+    const errorDetails = Array.isArray(result.errors) ? result.errors.slice(0, 8).map((error: { row: number; message: string }) => `Row ${error.row}: ${error.message}`).join("\n") : "";
+    const syncSummary = mode === "full_sync" ? result.syncSkipped ? "\nFull Sync safety stop: missing employees were not deactivated because the file was empty or contained row errors." : `\nDeactivated ${result.deactivated ?? 0}; protected ${result.protected ?? 0}.` : "";
+    const protectedDetails = Array.isArray(result.protectedEmployees) && result.protectedEmployees.length ? `\nProtected: ${result.protectedEmployees.slice(0, 8).map((employee: { employeeNo: string; reason: string }) => `${employee.employeeNo} (${employee.reason})`).join(", ")}` : "";
+    setImportResult(`Mode: ${mode === "full_sync" ? "Full Sync" : "Merge / Update"}\nImported ${result.imported}, updated ${result.updated}, reactivated ${result.reactivated ?? 0}, skipped ${result.skipped}${syncSummary}${protectedDetails}${errorDetails ? `\n${errorDetails}` : ""}`);
+    load(); setPendingEmployeeImportFile(null); setEmployeeImporting(false); if (fileInput.current) fileInput.current.value = "";
   };
   const downloadVehicleTemplate = async () => {
     const category = vehicleCategoryForPage(page);
@@ -1471,6 +1492,15 @@ function DataPage({
     setSelectedVehicleIds([]);
     setVehicleNotice(`${payload.deleted ?? selectedVehicleIds.length} vehicle${Number(payload.deleted ?? selectedVehicleIds.length) > 1 ? "s" : ""} deleted successfully.`);
     load();
+  };
+  const deleteSelectedEmployees = async () => {
+    if (!selectedEmployeeIds.length || deletingEmployees) return;
+    setDeletingEmployees(true);
+    const response = await fetch(`${API}/employees`, { method: "DELETE", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ ids: selectedEmployeeIds }) });
+    const payload = await response.json().catch(() => ({ error: "Unable to delete employees" }));
+    if (!response.ok) setEmployeeNotice(String(payload.error ?? "Unable to delete selected employees."));
+    else { const removed = Number(payload.removed ?? selectedEmployeeIds.length); setEmployeeNotice(`${removed} employee${removed === 1 ? "" : "s"} deleted successfully.${payload.skippedSelf ? " Your own account was kept active." : ""}`); setSelectedEmployeeIds([]); setShowEmployeeDeleteConfirmation(false); load(); }
+    setDeletingEmployees(false);
   };
   const selectCorporateRequest = async (id: unknown) => {
     setCorporateComment("");
@@ -1810,6 +1840,7 @@ function DataPage({
     );
   };
   if (page === "Ferry Management") return <FerryManagement token={token} />;
+  if (page === "IT Asset Management") return <ITAssetManagement token={token} />;
   if (!endpoint)
     return (
       <div className="empty-page">
@@ -3056,6 +3087,7 @@ function DataPage({
         </div>
         {page === "Employees" && (
           <div className="employee-tools">
+            <label className="employee-import-mode">Import mode<select value={employeeImportMode} disabled={employeeImporting} onChange={(event) => setEmployeeImportMode(event.target.value as "merge" | "full_sync")}><option value="merge">Merge / Update (Safe)</option><option value="full_sync">Full Sync</option></select></label>
             <button
               onClick={() =>
                 downloadExcel("template", "employee-import-template.xlsx")
@@ -3063,8 +3095,8 @@ function DataPage({
             >
               ⇩ Excel template
             </button>
-            <button onClick={() => fileInput.current?.click()}>
-              ⇧ Import Excel
+            <button disabled={employeeImporting} onClick={() => fileInput.current?.click()}>
+              {employeeImporting ? "Importing…" : "⇧ Import Excel"}
             </button>
             <button
               onClick={() =>
@@ -3084,14 +3116,15 @@ function DataPage({
               type="file"
               accept=".xlsx"
               hidden
-              onChange={(e) => importExcel(e.target.files?.[0])}
+              onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; if (employeeImportMode === "full_sync") setPendingEmployeeImportFile(file); else void importExcel(file, "merge"); }}
             />
           </div>
         )}
       </div>
+      {pendingEmployeeImportFile && <EmployeeFullSyncDialog fileName={pendingEmployeeImportFile.name} importing={employeeImporting} onCancel={() => { setPendingEmployeeImportFile(null); if (fileInput.current) fileInput.current.value = ""; }} onConfirm={() => void importExcel(pendingEmployeeImportFile, "full_sync")} />}
       {importResult && (
         <div
-          className={`import-result ${importResult.includes("failed") || importResult.includes("Missing") || importResult.includes("Row ") ? "error" : ""}`}
+          className={`import-result ${importResult.includes("failed") || importResult.includes("Missing") || importResult.includes("Row ") || importResult.includes("safety stop") ? "error" : ""}`}
         >
           {importResult}
           <button onClick={() => setImportResult("")}>×</button>
@@ -3368,16 +3401,20 @@ function DataPage({
           </div>
         </section>
       )}
+      {page === "Employees" && employeeNotice && <div className={`employee-bulk-notice ${employeeNotice.includes("successfully") ? "success" : "error"}`}><span>{employeeNotice}</span><button onClick={() => setEmployeeNotice("")}>×</button></div>}
       <section className={`data-card ${page === "Employees" ? "employee-list-card" : ""}`}>
         {loading ? (
           <div className="loading">Loading database records…</div>
         ) : (
           <>
+          {page === "Employees" && selectedEmployeeIds.length > 0 && <div className="employee-bulk-toolbar"><span><b>{selectedEmployeeIds.length}</b> selected</span><div><button onClick={() => setSelectedEmployeeIds([])}>Clear selection</button><button className="danger" onClick={() => setShowEmployeeDeleteConfirmation(true)}>Delete selected</button></div></div>}
+          <div className={page === "Employees" ? "employee-table-scroll" : ""}>
           <table>
             <thead>
               <tr>
                 {page === "Employees" ? (
                   <>
+                    <th className="employee-select-cell"><input type="checkbox" aria-label="Select all filtered employees" checked={allFilteredEmployeesSelected} onChange={(event) => setSelectedEmployeeIds((current) => event.target.checked ? Array.from(new Set([...current, ...filteredEmployeeIds])) : current.filter((id) => !filteredEmployeeIds.includes(id)))} /></th>
                     <th>Employee ID</th>
                     <th>Employee Name</th>
                     <th>Position</th>
@@ -3421,11 +3458,12 @@ function DataPage({
               {tableRows.map((r, i) => (
                 <tr
                   key={String(r.id ?? i)}
-                  className={page === "Employees" ? "employee-row" : ""}
+                  className={page === "Employees" ? `employee-row${selectedEmployeeIds.includes(String(r.id)) ? " selected" : ""}` : ""}
                   onClick={page === "Employees"?()=>selectEmployee(r.id):page==="Approvals"?()=>selectMyRequest(r):undefined}
                 >
                   {page === "Employees" ? (
                     <>
+                      <td className="employee-select-cell"><input type="checkbox" aria-label={`Select ${String(r.first_name ?? "")} ${String(r.last_name ?? "")}`} checked={selectedEmployeeIds.includes(String(r.id))} onClick={(event) => event.stopPropagation()} onChange={(event) => { const id = String(r.id); setSelectedEmployeeIds((current) => event.target.checked ? Array.from(new Set([...current, id])) : current.filter((value) => value !== id)); }} /></td>
                       <td>{String(r.employee_no)}</td>
                       <td>
                         <b>
@@ -3520,6 +3558,7 @@ function DataPage({
               ))}
             </tbody>
           </table>
+          </div>
           {page === "Employees" && (
             <div className="employee-pagination">
               <div>
@@ -3529,7 +3568,7 @@ function DataPage({
                 <label>
                   Rows
                   <select value={employeePageSize} onChange={(event) => { setEmployeePageSize(Number(event.target.value)); setEmployeePage(1); }}>
-                    <option value="25">25</option><option value="50">50</option><option value="100">100</option>
+                    <option value="25">25</option><option value="50">50</option><option value="100">100</option><option value="500">500</option><option value="1000">1000</option>
                   </select>
                 </label>
                 <button disabled={currentEmployeePage === 1} onClick={() => setEmployeePage((value) => Math.max(1, value - 1))}>Previous</button>
@@ -3543,6 +3582,7 @@ function DataPage({
           </>
         )}
       </section>
+      {showEmployeeDeleteConfirmation && <EmployeeDeleteDialog count={selectedEmployeeIds.length} deleting={deletingEmployees} onCancel={() => setShowEmployeeDeleteConfirmation(false)} onConfirm={() => void deleteSelectedEmployees()} />}
       {approvalDetail&&approvalRequest&&<div className="approval-detail-backdrop" onMouseDown={()=>setSelectedCorporateRequest(null)}><section className="approval-detail-modal" onMouseDown={event=>event.stopPropagation()}>
         <header><div><p>APPROVAL REQUEST DETAILS</p><h2>{String(approvalRequest.reference_no??approvalRequest.title??approvalRequest.id)}</h2><span>{String(approvalRequest.first_name??approvalRequest.employee_name??"")} {String(approvalRequest.last_name??"")} · {String(approvalRequest.employee_no??"")}</span></div><button onClick={()=>setSelectedCorporateRequest(null)}>×</button></header>
         <div className={`approval-detail-summary ${String(approvalRequest.request_type)==="payment"?"payment-summary-standard":""}`}>
@@ -3695,6 +3735,7 @@ function App() {
   const [currentName, setCurrentName] = useState("");
   const [corporateOpen, setCorporateOpen] = useState(false);
   const [fleetOpen, setFleetOpen] = useState(false);
+  const [informationTechnologyOpen, setInformationTechnologyOpen] = useState(false);
   const [humanResourceOpen, setHumanResourceOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
   const [reportGroupOpen, setReportGroupOpen] = useState<string | null>(null);
@@ -3983,6 +4024,8 @@ function App() {
         ? hasApprovalAccess
       : item === "Fleet Management"
         ? can(item) || fleetSubmenus.some(can)
+      : item === "Information Technology"
+        ? can(item) || informationTechnologySubmenus.some(can)
       : item === "Corporate"
       ? can(item) || corporateSubmenus.some(can)
       : item === "Reports"
@@ -4119,6 +4162,26 @@ function App() {
                         className={active === submenu ? "active" : ""}
                         onClick={() => navigate(submenu)}
                       >
+                        {submenu}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : item === "Information Technology" ? (
+              <div className="nav-group" key={item}>
+                <button
+                  className={informationTechnologySubmenus.includes(active) ? "active" : ""}
+                  onClick={() => setInformationTechnologyOpen((open) => !open)}
+                >
+                  <i><NavIcon name="Information Technology" /></i>
+                  Information Technology
+                  <span className={`chevron ${informationTechnologyOpen ? "open" : ""}`}><ChevronIcon /></span>
+                </button>
+                {informationTechnologyOpen && (
+                  <div className="sub-menu">
+                    {informationTechnologySubmenus.filter(can).map((submenu) => (
+                      <button key={submenu} className={active === submenu ? "active" : ""} onClick={() => navigate(submenu)}>
                         {submenu}
                       </button>
                     ))}

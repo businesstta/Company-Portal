@@ -15,6 +15,8 @@ Company Portal is a PostgreSQL-backed people and operations platform for HR admi
 - Navigation branding, system settings, nested navigation, and granular role access for menus and submenus
 - HR item masters for departments, organizations, and project locations
 - Reports and Excel downloads
+- IT Asset Management with three-step registration, images, safe Excel import/export, auto-generated asset tags, barcode/QR labels, bulk delete, and multi-label printing
+- Safe employee merge/full-sync import that preserves linked workflow identities and protects approvers, managers, and the signed-in account
 - Responsive desktop, tablet, and mobile layouts
 
 ## Repository structure
@@ -130,7 +132,183 @@ pnpm lint
 
 Both commands must pass before deployment.
 
-## Production deployment (Ubuntu, PostgreSQL, Nginx, and systemd)
+## Production deployment with Docker Compose on Linux
+
+This is the recommended Linux deployment. It runs PostgreSQL, the API, the administration web app, and the employee app as separate containers. Database files and uploaded attachments are stored in named Docker volumes, so recreating a container does not erase application data.
+
+### 1. Server requirements
+
+- A current Ubuntu/Debian/RHEL-compatible Linux server
+- Docker Engine 26 or newer with the Compose v2 plugin
+- At least 2 CPU cores, 4 GB RAM, and sufficient disk space for PostgreSQL, images, and attachments
+- DNS records for the administration and employee domains when exposing the apps publicly
+
+Verify Docker before cloning the repository:
+
+```bash
+docker --version
+docker compose version
+git --version
+```
+
+Do not publish PostgreSQL or the API container port directly. The Compose network keeps both private; only the two frontend ports are bound to the host.
+
+### 2. Clone and configure
+
+```bash
+sudo mkdir -p /opt/company-portal
+sudo chown "$USER":"$USER" /opt/company-portal
+git clone https://github.com/businesstta/Company-Portal.git /opt/company-portal
+cd /opt/company-portal
+cp docker.env.example .env
+```
+
+Edit `.env` and replace every example secret:
+
+```bash
+nano .env
+```
+
+Generate a strong JWT secret:
+
+```bash
+openssl rand -hex 64
+```
+
+Use a long URL-safe `POSTGRES_PASSWORD` containing letters, numbers, `_`, and `-`. `WEB_ORIGIN` must contain the exact public browser origins, separated by commas without spaces. For a first test using server ports, for example:
+
+```dotenv
+POSTGRES_DB=company_portal
+POSTGRES_USER=company_portal_app
+POSTGRES_PASSWORD=REPLACE_WITH_A_STRONG_URL_SAFE_PASSWORD
+JWT_SECRET=REPLACE_WITH_OPENSSL_OUTPUT
+WEB_ORIGIN=http://SERVER_IP:8080,http://SERVER_IP:8081
+WEB_PORT=8080
+MOBILE_PORT=8081
+```
+
+Protect the secrets file:
+
+```bash
+chmod 600 .env
+```
+
+### 3. Build and start
+
+```bash
+docker compose config
+docker compose build --pull
+docker compose up -d
+docker compose ps
+```
+
+The API waits for PostgreSQL and runs all pending migrations automatically before starting. A migration failure stops the API instead of serving against an incomplete schema.
+
+Follow startup logs and verify health:
+
+```bash
+docker compose logs -f api
+curl --fail http://127.0.0.1:8080/health
+curl --fail http://127.0.0.1:8080/healthz
+```
+
+Default host endpoints are:
+
+| Service | URL |
+| --- | --- |
+| Administration web app | `http://SERVER_IP:8080` |
+| Employee app | `http://SERVER_IP:8081` |
+| API health through web proxy | `http://SERVER_IP:8080/health` |
+
+### 4. Create the first administrator
+
+Do this once on a brand-new database. Do not run the development seed command in production.
+
+```bash
+read -rsp 'Initial admin password (12+ characters): ' ADMIN_PASSWORD && echo
+docker compose exec \
+  -e COMPANY_NAME='Your Company Name' \
+  -e ADMIN_EMPLOYEE_NO='ADMIN-001' \
+  -e ADMIN_FIRST_NAME='System' \
+  -e ADMIN_LAST_NAME='Administrator' \
+  -e ADMIN_EMAIL='admin@example.com' \
+  -e ADMIN_USERNAME='admin' \
+  -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+  api node dist/bootstrap-admin.js
+unset ADMIN_PASSWORD
+```
+
+Sign in and replace the temporary password immediately.
+
+### 5. Put HTTPS reverse proxy in front
+
+Use Nginx, Caddy, Traefik, or a managed load balancer on the host. Route `portal.example.com` to `127.0.0.1:8080` and `employee.example.com` to `127.0.0.1:8081`. Terminate TLS at the reverse proxy and set:
+
+```dotenv
+WEB_ORIGIN=https://portal.example.com,https://employee.example.com
+```
+
+After changing `.env`, recreate the API:
+
+```bash
+docker compose up -d --force-recreate api
+```
+
+The frontend images already use the relative `/api` path, so browser API requests stay on the same domain and are proxied internally to the API service.
+
+### 6. Deploy an update
+
+Always back up before updating:
+
+```bash
+cd /opt/company-portal
+mkdir -p backups
+docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "backups/company-portal-$(date +%F-%H%M).dump"
+docker run --rm -v company-portal_api_uploads:/source:ro -v "$PWD/backups":/backup alpine tar czf /backup/uploads-$(date +%F-%H%M).tar.gz -C /source .
+git pull --ff-only
+docker compose build --pull
+docker compose up -d
+docker compose ps
+curl --fail http://127.0.0.1:${WEB_PORT:-8080}/health
+```
+
+Compose recreates only changed containers. The named database and upload volumes remain attached. Never use `docker compose down -v` in production because `-v` deletes persistent data.
+
+### 7. Operations and troubleshooting
+
+```bash
+# Container state and health
+docker compose ps
+
+# Recent logs
+docker compose logs --tail=200 api db web mobile
+
+# Follow API logs
+docker compose logs -f api
+
+# Restart one service
+docker compose restart api
+
+# Stop without deleting data
+docker compose down
+
+# Start again
+docker compose up -d
+```
+
+If the API is unhealthy, check `docker compose logs api` first. Common causes are an incorrect database password, an invalid `DATABASE_URL` caused by special password characters, a missing `JWT_SECRET`, or a failed migration. Do not edit a migration that has already run in production; add a new ordered migration.
+
+### 8. Persistent data and backup policy
+
+The deployment uses:
+
+- `company-portal_postgres_data` for PostgreSQL
+- `company-portal_api_uploads` for asset images and other uploaded attachments
+- `.env` for production configuration and secrets
+
+Back up the database, upload volume, and encrypted secrets independently. Test restoration regularly. Database restoration alone does not restore uploaded images or documents.
+
+## Alternative production deployment (Ubuntu, PostgreSQL, Nginx, and systemd)
 
 This deployment serves both React applications as static files and keeps the Node API running behind Nginx. Replace the example domains and passwords before running the commands.
 

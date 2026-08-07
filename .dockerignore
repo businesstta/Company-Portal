@@ -1,0 +1,17 @@
+.git
+.gitignore
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+**/uploads
+*.log
+.tmp-*
+.codex-tool-check*
+docx_build
+ppt_build
+workbook_analysis
+work
+outputs
+coverage

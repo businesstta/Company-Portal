@@ -1,0 +1,82 @@
+name: company-portal
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-company_portal}
+      POSTGRES_USER: ${POSTGRES_USER:-company_portal_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - portal
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-company_portal_app}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-company_portal}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      WEB_ORIGIN: ${WEB_ORIGIN:?Set WEB_ORIGIN in .env}
+    volumes:
+      - api_uploads:/app/apps/api/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    networks:
+      - portal
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - portal
+
+  mobile:
+    build:
+      context: .
+      dockerfile: Dockerfile.mobile
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    ports:
+      - "${MOBILE_PORT:-8081}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - portal
+
+volumes:
+  postgres_data:
+  api_uploads:
+
+networks:
+  portal:
+    driver: bridge

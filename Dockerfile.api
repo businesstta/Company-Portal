@@ -1,0 +1,34 @@
+FROM node:22-bookworm-slim AS build
+
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY apps/mobile/package.json apps/mobile/package.json
+RUN pnpm install --frozen-lockfile
+
+COPY apps/api apps/api
+RUN pnpm --filter @company-portal/api build \
+    && cp -r apps/api/src/migrations apps/api/dist/migrations
+
+FROM node:22-bookworm-slim AS runtime
+
+ENV NODE_ENV=production
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY apps/mobile/package.json apps/mobile/package.json
+RUN pnpm install --frozen-lockfile --prod --filter @company-portal/api...
+
+COPY --from=build /app/apps/api/dist apps/api/dist
+WORKDIR /app/apps/api
+RUN mkdir -p uploads && chown -R node:node /app/apps/api
+
+USER node
+EXPOSE 4000
+CMD ["sh", "-c", "node dist/migrate.js && exec node dist/server.js"]
