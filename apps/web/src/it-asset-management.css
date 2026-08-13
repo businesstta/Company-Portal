@@ -16,3 +16,175 @@
 @media print{html:has(body.bartender-printing),body.bartender-printing{width:auto!important;height:auto!important;margin:0!important;padding:0!important;overflow:visible!important;background:#fff!important}body.bartender-printing>#root{display:none!important}body.bartender-printing>.it-asset-bartender-sheet.active{position:static!important;inset:auto!important;display:block!important;width:203.2mm!important;height:auto!important;overflow:visible!important}}
 @media print{.it-asset-code-previews{padding-top:4.5mm!important;padding-bottom:1.5mm!important}.bartender-asset-label>main{min-height:0!important;overflow:hidden!important;padding-top:4.2mm!important;padding-bottom:.8mm!important}.bartender-asset-label>main section{min-height:0!important;overflow:hidden!important}}
 .it-asset-bulk-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:14px 18px 0;padding:10px 12px 10px 15px;border:1px solid #dcd5f5;border-radius:9px;background:#f7f5ff;color:#50458b;font-size:13px}.it-asset-bulk-toolbar>div{display:flex;gap:8px}.it-asset-bulk-toolbar button{min-height:34px;padding:0 12px;border:1px solid #dcd8e8;border-radius:7px;background:#fff;color:#4b5565;font-family:inherit;font-size:11px;font-weight:700}.it-asset-bulk-toolbar .danger{border-color:#f1cbc7;background:#fff0ee;color:#b42318}.it-asset-select-cell{width:48px!important;min-width:48px!important;max-width:48px!important;text-align:center}.it-asset-select-cell input{width:15px;height:15px;accent-color:#6554dc}.it-asset-table-scroll tr.selected td{background:#f7f5ff}.it-asset-table-scroll tr.selected .it-asset-actions,.it-asset-table-scroll tr.selected .it-asset-select-cell{background:#f7f5ff}@media(max-width:650px){.it-asset-bulk-toolbar{align-items:flex-start;flex-direction:column}.it-asset-bulk-toolbar>div{width:100%}.it-asset-bulk-toolbar button{flex:1}}
+
+/* Final BarTender layout: keep titles clear of borders and location in the header. */
+@media print{
+  .bartender-asset-label{grid-template-rows:14.5mm minmax(0,1fr) 4.5mm!important}
+  .bartender-asset-label>header{gap:1mm!important;padding:1.8mm 2.5mm!important}
+  .bartender-asset-label>header>div{min-width:0!important;gap:1mm!important}
+  .bartender-asset-label>header span,.bartender-asset-label>header b,.bartender-asset-label>header em{flex:0 0 auto!important}
+  .bartender-asset-label>header em{min-width:0!important;overflow:hidden!important;color:#596374!important;font:700 5.8pt 'DM Sans'!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+  .bartender-asset-label>main{padding:2.5mm 2.5mm 1mm!important}
+  .bartender-asset-label>main section{grid-template-rows:3.5mm minmax(0,1fr)!important;padding:1.2mm 1mm 1mm!important}
+  .bartender-asset-label>main h3{align-self:start!important;margin:0!important;padding:.35mm 1.1mm!important}
+  .bartender-asset-label>main section:first-child img{max-height:19mm!important}
+  .bartender-asset-label>main section:last-child img{width:18.5mm!important;height:18.5mm!important}
+  .bartender-asset-label>footer{justify-content:flex-end!important;padding:.7mm 2.5mm!important}
+}
+
+/* Clean batch-print label. This is intentionally isolated from the legacy
+   bartender label rules above so the old decorative layout cannot leak in. */
+@media print{
+  .batch-asset-label{
+    position:relative!important;
+    display:grid!important;
+    width:101.6mm!important;
+    height:50.8mm!important;
+    grid-template-rows:12mm minmax(0,1fr)!important;
+    overflow:hidden!important;
+    padding:3mm!important;
+    border:.2mm solid #9aa3b1!important;
+    border-radius:1.5mm!important;
+    box-sizing:border-box!important;
+    background:#fff!important;
+    color:#172033!important;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+  }
+  .batch-asset-label>header{
+    display:block!important;
+    min-width:0!important;
+    padding:0!important;
+    border:0!important;
+    background:#fff!important;
+  }
+  .batch-asset-label>header h2{min-width:0!important;margin:0!important;overflow:hidden!important;color:#172033!important;font:700 10pt 'DM Sans',sans-serif!important;line-height:1.1!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+  .batch-asset-label>header>div{display:flex!important;min-width:0!important;align-items:center!important;gap:2.5mm!important;overflow:hidden!important}
+  .batch-asset-label>header>.batch-asset-title-row{justify-content:space-between!important;margin-bottom:1.2mm!important;overflow:visible!important}
+  .batch-asset-label>header>.batch-asset-title-row b{flex:0 0 auto!important;color:#596273!important;font:700 6pt 'DM Sans',sans-serif!important;letter-spacing:.35pt!important;line-height:1!important;text-transform:uppercase!important}
+  .batch-asset-label>header strong,.batch-asset-label>header span{display:block!important;overflow:hidden!important;color:#596273!important;font:700 6.2pt 'DM Sans',sans-serif!important;line-height:1.15!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+  .batch-asset-label>header strong{color:#28334a!important}
+  .batch-asset-label>main{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) 25mm!important;
+    gap:4mm!important;
+    align-items:center!important;
+    min-height:0!important;
+    padding:2mm 1mm 0!important;
+    border:0!important;
+    background:#fff!important;
+  }
+  .batch-asset-label>main img{display:block!important;align-self:center!important;justify-self:center!important;object-fit:contain!important}
+  .batch-asset-label>main img:first-child{max-width:62mm!important;max-height:25mm!important}
+  .batch-asset-label>main img:last-child{width:23mm!important;height:23mm!important}
+}
+
+/* Structured caption row for printed code panels (no border overlap). */
+@media print{
+  .bartender-asset-label>main{
+    padding:3mm 2.5mm 1.2mm!important;
+  }
+  .bartender-asset-label>main section{
+    position:relative!important;
+    display:grid!important;
+    grid-template-rows:4mm minmax(0,1fr)!important;
+    align-items:center!important;
+    justify-items:center!important;
+    padding:.8mm 1mm 1mm!important;
+    border:.18mm solid #d8deea!important;
+    overflow:hidden!important;
+  }
+  .bartender-asset-label>main h3{display:none!important}
+  .bartender-asset-label>main section::before{
+    position:static!important;
+    inset:auto!important;
+    z-index:auto!important;
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-self:start!important;
+    min-height:2.8mm!important;
+    padding:.35mm 1.15mm!important;
+    border-radius:2mm!important;
+    background:#eef1f6!important;
+    color:#071b4f!important;
+    font:800 5.4pt/1 'DM Sans'!important;
+    white-space:nowrap!important;
+  }
+  .bartender-asset-label>main section:first-child::before{content:"Barcode"!important}
+  .bartender-asset-label>main section:last-child::before{content:"QR Code"!important}
+  .bartender-asset-label>main section:first-child img{max-height:16.8mm!important}
+  .bartender-asset-label>main section:last-child img{width:16.8mm!important;height:16.8mm!important}
+}
+
+.it-asset-bulk-toolbar>div{flex-wrap:wrap;justify-content:flex-end}.it-asset-bulk-toolbar .workflow{border-color:#cbd5e1;background:#f8fafc;color:#071b4f}.it-asset-bulk-toolbar .workflow:hover{border-color:#071b4f;background:#eef2f8}.it-asset-writeoff-backdrop{position:fixed;inset:0;z-index:1400;display:grid;place-items:center;padding:22px;background:rgba(15,23,42,.62);backdrop-filter:blur(4px)}.it-asset-writeoff-modal{display:grid;grid-template-rows:auto minmax(0,1fr);width:min(1120px,calc(100vw - 36px));max-height:calc(100vh - 44px);overflow:hidden;border-radius:18px;background:#fff;box-shadow:0 30px 90px rgba(15,23,42,.32)}.it-asset-writeoff-modal>header{position:relative;top:auto;z-index:2;display:flex;align-items:flex-start;justify-content:space-between;width:100%;height:auto;min-height:104px;padding:22px 25px 24px;border-bottom:1px solid #e5e9f0;background:#fff;box-sizing:border-box}.it-asset-writeoff-modal header p,.it-asset-writeoff-modal header h2,.it-asset-writeoff-modal header span{margin:0}.it-asset-writeoff-modal header p{color:#071b4f;font-size:9px;font-weight:800;letter-spacing:1.15px}.it-asset-writeoff-modal header h2{margin:5px 0 7px;color:#202838;font:700 21px Manrope;line-height:1.2}.it-asset-writeoff-modal header span{display:block;color:#7d8796;font-size:11px;line-height:1.4}.it-asset-writeoff-modal header>button{flex:0 0 34px;width:34px;height:34px;border:0;border-radius:8px;background:#f1f3f6;color:#3e4857;font-size:20px}.it-asset-writeoff-modal>form{display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-height:0}.it-asset-writeoff-summary{display:flex;align-items:center;gap:8px;min-height:54px;padding:13px 25px;border-bottom:1px solid #e8ebf0;background:#f8fafc;color:#536071;box-sizing:border-box}.it-asset-writeoff-summary b{display:grid;width:27px;height:27px;place-items:center;border-radius:50%;background:#071b4f;color:#fff;font-size:11px}.it-asset-writeoff-summary span{color:#253044;font-size:12px;font-weight:750}.it-asset-writeoff-summary small{margin-left:auto;font-size:10px}.it-asset-writeoff-list{display:grid;gap:14px;padding:20px 25px;overflow:auto;background:#f7f9fc}.it-asset-writeoff-list fieldset{margin:0;padding:16px;border:1px solid #dce2eb;border-radius:12px;background:#fff}.it-asset-writeoff-list legend{padding:0 7px;color:#071b4f;font-size:10px;font-weight:800}.it-asset-writeoff-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.it-asset-writeoff-grid label{display:grid;gap:5px;color:#5b6574;font-size:9px;font-weight:700}.it-asset-writeoff-grid input{width:100%;height:38px;padding:0 10px;border:1px solid #e0e5ec;border-radius:7px;background:#f4f6f9;color:#283345;font:11px 'DM Sans';opacity:1;-webkit-text-fill-color:#283345}.it-asset-writeoff-modal footer{display:flex;justify-content:flex-end;gap:9px;padding:15px 25px;border-top:1px solid #e5e9f0;background:#fff}.it-asset-writeoff-modal footer button{height:40px;padding:0 16px;border:1px solid #d7dde6;border-radius:8px;background:#fff;color:#465062;font-size:11px;font-weight:750}.it-asset-writeoff-modal footer .primary{border-color:#071b4f;background:#071b4f;color:#fff}.it-asset-writeoff-modal button:disabled{cursor:wait;opacity:.6}@media(max-width:900px){.it-asset-writeoff-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.it-asset-writeoff-summary{align-items:flex-start;flex-wrap:wrap}.it-asset-writeoff-summary small{width:100%;margin-left:35px}}@media(max-width:560px){.it-asset-writeoff-backdrop{padding:10px}.it-asset-writeoff-modal{width:100%;max-height:calc(100vh - 20px)}.it-asset-writeoff-grid{grid-template-columns:1fr}.it-asset-writeoff-modal>header,.it-asset-writeoff-list,.it-asset-writeoff-modal footer{padding-left:15px;padding-right:15px}}
+.it-asset-label-meta>em{overflow:hidden;color:#687384;font-size:9px;font-style:normal;font-weight:700;text-overflow:ellipsis;white-space:nowrap}@media print{.it-asset-label-meta>em{max-width:25mm!important;color:#596374!important;font-size:6pt!important}.label-print-note{justify-content:flex-end!important}}
+
+/* Match every BarTender sheet label to the approved single-label card. */
+@media print{
+  .bartender-asset-label{
+    grid-template-columns:7mm minmax(0,1fr)!important;
+    grid-template-rows:14mm minmax(0,1fr) 5.2mm!important;
+    border:.3mm solid #322875!important;
+    border-radius:1.5mm!important;
+    background:#fff!important;
+  }
+  .bartender-asset-label>aside{
+    border-right:.25mm solid #493bc4!important;
+    border-radius:1.15mm 0 0 1.15mm!important;
+  }
+  .bartender-asset-label>header{
+    gap:1.15mm!important;
+    padding:2mm 3mm 1.8mm!important;
+    border-bottom:0!important;
+    background:#fff!important;
+  }
+  .bartender-asset-label>header h2{font-size:11.5pt!important}
+  .bartender-asset-label>header>div{gap:1.2mm!important}
+  .bartender-asset-label>header span,.bartender-asset-label>header b{
+    padding:.7mm 1.6mm!important;
+  }
+  .bartender-asset-label>main{
+    grid-template-columns:minmax(0,1fr) 25mm!important;
+    gap:2.4mm!important;
+    padding:3mm 3mm 1.4mm!important;
+    background:#fff!important;
+  }
+  .bartender-asset-label>main section{
+    grid-template-rows:4mm minmax(0,1fr)!important;
+    width:100%!important;
+    height:100%!important;
+    margin:0!important;
+    padding:1.4mm 1.6mm 1.2mm!important;
+    border:0!important;
+    border-radius:2mm!important;
+    background:#fff!important;
+    box-shadow:inset 0 0 0 .22mm #d9d5ee!important;
+    box-sizing:border-box!important;
+  }
+  .bartender-asset-label>main section::before{
+    min-height:2.9mm!important;
+    padding:.45mm 1.35mm!important;
+    background:#eeeaff!important;
+    color:#493db0!important;
+    font-size:5.7pt!important;
+    transform:none!important;
+  }
+  .bartender-asset-label>main section:first-child img{
+    max-width:56mm!important;
+    max-height:16mm!important;
+  }
+  .bartender-asset-label>main section:last-child img{
+    width:16.5mm!important;
+    height:16.5mm!important;
+  }
+  .bartender-asset-label>footer{
+    justify-content:flex-end!important;
+    padding:.8mm 3mm!important;
+    border-top:0!important;
+    background:#fff!important;
+  }
+  .bartender-asset-label>footer strong{
+    padding:.65mm 1.8mm!important;
+    background:#312873!important;
+  }
+}

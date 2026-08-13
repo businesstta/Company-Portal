@@ -9,6 +9,7 @@ work/
 outputs/
 uploads/
 coverage/
+backups/
 *.log
 *.out
 *.err

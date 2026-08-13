@@ -1,0 +1,257 @@
+:root{
+  --theme-navy:#071b4f;
+  --theme-navy-hover:#071b4f;
+  --theme-navy-soft:#14336d;
+  --theme-lemon:#ffcc00;
+  --theme-lemon-hover:#ffd633;
+  --theme-lemon-soft:rgba(255,204,0,.14);
+}
+
+/* Navigation: dark navy foundation with a high-contrast lemon active state. */
+.sidebar{background:var(--theme-navy);color:#b9c7d8}
+.sidebar nav::-webkit-scrollbar-thumb{background:#28425f}
+.sidebar .brand,.sidebar .user{color:#fff}
+.sidebar nav button,
+.sidebar nav .sub-menu>button,
+.sidebar nav .report-category-menu .report-category,
+.sidebar nav .report-leaf-menu button{
+  color:#fff!important;
+  font-weight:500;
+}
+.sidebar nav button:hover,
+.sidebar nav button.active,
+.sidebar .nav-group>button.active{
+  background:var(--theme-lemon)!important;
+  color:var(--theme-navy)!important;
+  box-shadow:none!important;
+}
+.sidebar nav button:hover i svg,
+.sidebar nav button.active i svg{stroke:var(--theme-navy)!important}
+.sidebar .sub-menu{border-color:#294560}
+.sidebar .sub-menu:before{background:#36516c!important}
+.sidebar .sub-menu>button:before{border-color:#60758a;background:var(--theme-navy)}
+.sidebar .sub-menu>button:hover:before,
+.sidebar .sub-menu>button.active:before{
+  border-color:var(--theme-lemon)!important;
+  background:var(--theme-lemon)!important;
+  box-shadow:0 0 0 3px rgba(255,204,0,.16)!important;
+}
+.sidebar .sub-menu>button:hover,
+.sidebar .sub-menu>button.active,
+.sidebar .report-category-menu .report-category:hover,
+.sidebar .report-category-menu .report-category.active,
+.sidebar .report-leaf-menu button:hover,
+.sidebar .report-leaf-menu button.active{
+  border-color:var(--theme-lemon)!important;
+  background:var(--theme-lemon)!important;
+  color:var(--theme-navy)!important;
+}
+.sidebar .report-leaf-menu button.active:before{background:var(--theme-navy)!important;box-shadow:none!important}
+.sidebar .chevron,
+.sidebar .chevron.open,
+.sidebar .report-category-menu .report-category .chevron{
+  width:18px;
+  height:22px;
+  flex:0 0 18px;
+  margin-left:auto!important;
+  margin-right:-2px;
+  border-color:transparent;
+  background:transparent;
+  color:#fff;
+  line-height:0;
+  align-items:center;
+  justify-content:center;
+  transform:none!important;
+}
+.sidebar .chevron svg{
+  display:none!important;
+}
+.sidebar .chevron::before{
+  content:"+";
+  display:grid;
+  place-items:center;
+  width:100%;
+  height:100%;
+  border:0;
+  font:700 16px/1 Arial,sans-serif;
+  transform:none;
+}
+.sidebar .chevron.open::before{
+  content:"−";
+  transform:none;
+}
+.sidebar nav .nav-group>button:hover>.chevron,
+.sidebar nav .nav-group>button.active>.chevron,
+.sidebar nav button:hover>.chevron,
+.sidebar nav button.active>.chevron{
+  border-color:transparent!important;
+  background:transparent!important;
+  color:#071b4f!important;
+}
+.sidebar nav .nav-group>button:hover>.chevron svg,
+.sidebar nav .nav-group>button.active>.chevron svg,
+.sidebar nav button:hover>.chevron svg,
+.sidebar nav button.active>.chevron svg,
+.sidebar nav .nav-group>button:hover>.chevron svg *,
+.sidebar nav .nav-group>button.active>.chevron svg *{
+  fill:none!important;
+  stroke:#ffcc00!important;
+}
+.sidebar nav .nav-group>button.active>.chevron svg path,
+.sidebar nav .nav-group>button:hover>.chevron svg path{
+  stroke:#ffcc00!important;
+  stroke-width:2.4!important;
+  opacity:1!important;
+}
+.sidebar .account-menu button:hover{background:#f2f7d1;color:var(--theme-navy)}
+
+/* Replace purple primary actions with dark navy throughout the web app. */
+button.primary,
+.primary,
+.employee-tools .primary,
+.form-footer .primary,
+.vehicle-page-actions .primary,
+.ferry-actions .primary,
+.ferry-vehicle-form .primary,
+.ferry-primary-actions .primary,
+.it-asset-modal footer .primary,
+.permission-save-bar button,
+.create-role-button,
+.role-create-actions .primary,
+.banner-settings-card button,
+.approval-workflow-card button,
+.confirm-approve,
+.ferry-status-dialog>button{
+  border-color:var(--theme-navy)!important;
+  background:var(--theme-navy)!important;
+  color:#fff!important;
+  box-shadow:0 5px 14px rgba(7,27,79,.22)!important;
+}
+.login-card form button,
+.it-asset-image-viewer>footer button,
+.it-asset-image-field>input[type=file]::file-selector-button{
+  border-color:var(--theme-navy)!important;
+  background:var(--theme-navy)!important;
+  color:#fff!important;
+  box-shadow:0 5px 14px rgba(7,27,79,.22)!important;
+}
+.login-page{background:radial-gradient(circle at 20% 15%,rgba(255,204,0,.2),transparent 32%),#f5f7fb}
+.login-card>p{color:var(--theme-navy)}
+button.primary:hover,
+.primary:hover,
+.vehicle-page-actions .primary:hover,
+.ferry-actions .primary:hover,
+.it-asset-modal footer .primary:hover,
+.permission-save-bar button:hover,
+.create-role-button:hover,
+.banner-settings-card button:hover,
+.approval-workflow-card button:hover{
+  border-color:var(--theme-navy-hover)!important;
+  background:var(--theme-navy-hover)!important;
+}
+
+/* Existing outline-style purple actions retain their hierarchy in navy. */
+.vehicle-edit-button,
+.it-asset-view-code,
+.it-asset-actions button:not(.danger),
+.it-asset-page-actions>button:not(.primary),
+.it-asset-code-previews article>button,
+.bartender-print-controls button:not(.primary),
+.ferry-row-actions button:not(.danger),
+.report-downloads article button,
+.notification-list article>button,
+.pagination-controls button,
+.ferry-pagination button{
+  border-color:#cbd5df!important;
+  background:#fff!important;
+  color:var(--theme-navy)!important;
+}
+
+/* Navy interaction accents for controls that previously used purple. */
+input[type="checkbox"],input[type="radio"]{accent-color:var(--theme-navy)}
+.employee-filter-grid input:focus,.employee-filter-grid select:focus,
+.ferry-filter-grid input:focus,.ferry-filter-grid select:focus,
+.it-asset-filter-grid input:focus,.it-asset-filter-grid select:focus,
+.it-asset-form-grid input:focus,.it-asset-form-grid select:focus,
+.approver-select-search:focus,.role-create-dialog input:focus{
+  border-color:var(--theme-navy)!important;
+  box-shadow:0 0 0 3px rgba(7,27,79,.1)!important;
+}
+.page-title>div>p,.welcome>div>p{color:var(--theme-navy)}
+
+/* Keep the sidebar footer compact, balanced and consistent with the new theme. */
+.sidebar-bottom{
+  margin-top:auto;
+  padding:12px 6px 0;
+  border-top:1px solid rgba(255,255,255,.12);
+}
+.sidebar-bottom>button{
+  width:100%;
+  min-height:44px;
+  margin:0 0 10px;
+  padding:0 13px;
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:11px;
+  background:rgba(255,255,255,.055);
+  color:#dbe5f2;
+  transition:background .18s ease,border-color .18s ease,color .18s ease,transform .18s ease;
+}
+.sidebar-bottom>button:hover,
+.sidebar-bottom>button.active{
+  border-color:var(--theme-lemon)!important;
+  background:var(--theme-lemon)!important;
+  color:var(--theme-navy)!important;
+  box-shadow:none!important;
+}
+.sidebar-bottom>button:hover{transform:translateY(-1px)}
+.sidebar-bottom>button:hover i svg,
+.sidebar-bottom>button.active i svg{stroke:var(--theme-navy)!important}
+.sidebar-bottom .user{
+  min-height:57px;
+  margin:0;
+  padding:10px 11px;
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:12px;
+  background:rgba(255,255,255,.065);
+  box-shadow:0 8px 20px rgba(0,0,0,.1);
+  transition:background .18s ease,border-color .18s ease;
+}
+.sidebar-bottom .user:hover{
+  border-color:rgba(255,204,0,.42);
+  background:rgba(255,255,255,.09);
+}
+.sidebar-bottom .avatar{
+  width:36px;
+  height:36px;
+  flex:0 0 36px;
+  border:1px solid rgba(255,204,0,.5);
+  background:var(--theme-lemon);
+  color:var(--theme-navy);
+  box-shadow:0 0 0 3px rgba(255,204,0,.1);
+}
+.sidebar-bottom .user>div:nth-child(2){
+  min-width:0;
+  color:#fff;
+  font-weight:700;
+  line-height:1.25;
+}
+.sidebar-bottom .user small{
+  margin-top:3px;
+  color:#9fb0c6;
+  font-weight:500;
+  text-transform:capitalize;
+}
+.sidebar-bottom .account-trigger{
+  width:30px!important;
+  height:30px!important;
+  margin-left:auto!important;
+  padding:0!important;
+  border-radius:8px!important;
+  color:#dbe5f2!important;
+  display:grid!important;
+  place-items:center!important;
+}
+.sidebar-bottom .account-trigger:hover{
+  background:rgba(255,204,0,.14)!important;
+  color:var(--theme-lemon)!important;
+}

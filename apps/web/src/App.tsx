@@ -14,6 +14,7 @@ import "./assigned-vehicle.css";
 import FerryManagement from "./FerryManagement";
 import ITAssetManagement from "./ITAssetManagement";
 import "./select-design.css";
+import "./theme.css";
 
 const nav = [
   "Overview",
@@ -571,7 +572,7 @@ function NavIcon({ name }: { name: string }) {
 function ChevronIcon() {
   return (
     <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path d="m6.5 8 3.5 3.5L13.5 8" />
+      <path d="m6 8 4 4 4-4" />
     </svg>
   );
 }
@@ -1351,6 +1352,25 @@ function DataPage({
     a.click();
     URL.revokeObjectURL(url);
   };
+  const exportVehicles = async () => {
+    const category = vehicleCategoryForPage(page);
+    const params = new URLSearchParams({ category });
+    if (vehicleFilters.vehicleName.trim()) params.set("vehicleName", vehicleFilters.vehicleName.trim());
+    if (vehicleFilters.vehicleType.trim()) params.set("vehicleType", vehicleFilters.vehicleType.trim());
+    if (vehicleFilters.plateNumber.trim()) params.set("plateNumber", vehicleFilters.plateNumber.trim());
+    if (vehicleFilters.department.trim()) params.set("department", vehicleFilters.department.trim());
+    if (vehicleFilters.driverName.trim()) params.set("driverName", vehicleFilters.driverName.trim());
+    if (vehicleFilters.phoneNo.trim()) params.set("phoneNo", vehicleFilters.phoneNo.trim());
+    if (vehicleFilters.status.trim()) params.set("status", vehicleFilters.status.trim());
+    const r = await fetch(`${API}/vehicles/export?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!r.ok) return alert("Vehicle export failed");
+    const url = URL.createObjectURL(await r.blob());
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${category}-vehicles-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
   const importVehicles = async (file?: File) => {
     if (!file) return;
     const category = vehicleCategoryForPage(page);
@@ -1840,7 +1860,7 @@ function DataPage({
     );
   };
   if (page === "Ferry Management") return <FerryManagement token={token} />;
-  if (page === "IT Asset Management") return <ITAssetManagement token={token} />;
+  if (page === "IT Asset Management") return <ITAssetManagement token={token} onNavigate={onNavigate} />;
   if (!endpoint)
     return (
       <div className="empty-page">
@@ -1872,6 +1892,7 @@ function DataPage({
           <div className="vehicle-page-actions">
             <button type="button" onClick={downloadVehicleTemplate}>⇩ Excel template</button>
             <button type="button" onClick={() => vehicleFileInput.current?.click()}>⇧ Import Excel</button>
+            <button type="button" onClick={exportVehicles}>⇩ Export Excel</button>
             <button className="primary" onClick={() => { setEditingVehicle(null); setShowForm(true); }}>
               + New vehicle
             </button>
@@ -1940,10 +1961,11 @@ function DataPage({
               <button type="button" className="danger" onClick={() => setShowVehicleDeleteConfirmation(true)}>Delete selected</button>
             </div>
           )}
-          {loading ? (
-            <div className="loading">Loading vehicle records…</div>
-          ) : (
-            <table>
+          <div className="vehicle-table-scroll">
+            {loading ? (
+              <div className="loading">Loading vehicle records…</div>
+            ) : (
+              <table>
               <thead><tr><th className="vehicle-select-cell"><input aria-label="Select all vehicles" type="checkbox" checked={allVisibleVehiclesSelected} onChange={(event) => toggleAllVisibleVehicles(event.target.checked)} /></th><th>Vehicle Name</th><th>Vehicle Type</th><th>Vehicle Plate Number</th>{showVehicleStatus ? <><th>Driver Name</th><th>Phone No</th><th>Status</th></> : <th>Department</th>}<th>Action</th></tr></thead>
               <tbody>
                 {pagedVehicleRows.map((vehicle, index) => (
@@ -1961,9 +1983,10 @@ function DataPage({
                   </tr>
                 ))}
               </tbody>
-            </table>
-          )}
-          {!loading && filteredVehicleRows.length === 0 && <div className="loading">No vehicle records match the selected filters.</div>}
+              </table>
+            )}
+            {!loading && filteredVehicleRows.length === 0 && <div className="loading">No vehicle records match the selected filters.</div>}
+          </div>
           {!loading && filteredVehicleRows.length > 0 && (
             <div className="employee-pagination">
               <div>

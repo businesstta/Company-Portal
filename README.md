@@ -134,6 +134,8 @@ Both commands must pass before deployment.
 
 ## Production deployment with Docker Compose on Linux
 
+For automatic `develop` → staging and approved `main` → production deployments on a shared Ubuntu server, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
 This is the recommended Linux deployment. It runs PostgreSQL, the API, the administration web app, and the employee app as separate containers. Database files and uploaded attachments are stored in named Docker volumes, so recreating a container does not erase application data.
 
 ### 1. Server requirements

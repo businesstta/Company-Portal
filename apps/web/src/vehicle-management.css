@@ -146,23 +146,32 @@
 }
 
 .vehicle-list-card {
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
   max-height: calc(100vh - 335px);
   min-height: 280px;
-  overflow: auto;
+  overflow: hidden;
   scrollbar-gutter: stable;
 }
 
 .vehicle-management-page:not(.has-form) .vehicle-list-card {
-  max-height: none;
+  max-height: clamp(420px, calc(100vh - 335px), 780px);
+}
+
+.vehicle-table-scroll {
+  flex: 1 1 auto;
   min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .vehicle-list-card table {
   min-width: 1120px;
 }
 
-.vehicle-list-card thead th {
+.vehicle-table-scroll thead th {
   position: sticky;
   top: 0;
   z-index: 2;
@@ -186,6 +195,7 @@
 }
 
 .vehicle-bulk-toolbar {
+  flex: 0 0 auto;
   align-items: center;
   background: #fbfaff;
   border-bottom: 1px solid #e6e1ff;
@@ -218,6 +228,10 @@
   background: #fff1f2;
   border-color: #fecdd3;
   color: #e11d48;
+}
+
+.vehicle-list-card .employee-pagination {
+  flex: 0 0 auto;
 }
 
 .vehicle-success-notice {
@@ -434,7 +448,7 @@
   }
 
   .vehicle-list-card {
-    overflow-x: auto;
+    overflow: hidden;
   }
 
   .vehicle-request-form .vehicle-requester-grid,

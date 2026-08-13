@@ -496,6 +496,22 @@ app.put('/api/it-assets/:id',auth,asyncRoute(async(req,res)=>{
   const result=await db.query(`UPDATE it_assets SET ${assignments},updated_at=now() WHERE id=$${values.length+1} AND company_id=$${values.length+2} AND is_active=true RETURNING ${itAssetFields}`,[...values,req.params.id,company.company_id]);if(!result.rowCount)return res.status(404).json({error:'IT asset not found'})
   res.json(result.rows[0])
 }))
+app.post('/api/it-assets/write-off',auth,asyncRoute(async(req,res)=>{
+  if(!await hasMenuAccess(req,'IT Asset Management'))return res.status(403).json({error:'Permission denied: IT Asset Management'})
+  const input=z.object({ids:z.array(z.string().uuid()).min(1).max(1000)}).parse(req.body)
+  const company=(await db.query('SELECT company_id FROM employees WHERE id=$1',[req.user!.employeeId])).rows[0]
+  const client=await db.connect()
+  try{
+    await client.query('BEGIN')
+    const assets=(await client.query(`SELECT ${itAssetFields} FROM it_assets WHERE company_id=$1 AND id=ANY($2::uuid[]) AND is_active=true FOR UPDATE`,[company.company_id,input.ids])).rows
+    if(assets.length!==input.ids.length){await client.query('ROLLBACK');return res.status(404).json({error:'One or more selected IT assets were not found'})}
+    const batchId=String((await client.query('SELECT gen_random_uuid() AS id')).rows[0].id)
+    for(const asset of assets)await client.query('INSERT INTO it_asset_write_offs(batch_id,company_id,asset_id,asset_snapshot,written_off_by) VALUES($1,$2,$3,$4::jsonb,$5)',[batchId,company.company_id,asset.id,JSON.stringify(asset),req.user!.id])
+    await client.query("UPDATE it_assets SET status='Disposed',updated_at=now() WHERE company_id=$1 AND id=ANY($2::uuid[]) AND is_active=true",[company.company_id,input.ids])
+    await client.query('COMMIT')
+    res.json({batchId,writtenOff:assets.length})
+  }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
+}))
 app.post('/api/it-assets/:id/image',auth,assetImageUpload.single('image'),asyncRoute(async(req,res)=>{
   if(!await hasMenuAccess(req,'IT Asset Management'))return res.status(403).json({error:'Permission denied: IT Asset Management'})
   if(!req.file)return res.status(400).json({error:'A JPG, PNG or WebP asset image is required'})
@@ -544,11 +560,11 @@ const vehicleColumns=(category:string)=>category==='maintenance'?[
   ['Phone No','phone_no',18],
   ['Status','status',12],
 ] as [string,string,number][]
-const vehicleWorkbook=async(category:string)=>{
+const vehicleWorkbook=async(category:string,rows?:Record<string,unknown>[])=>{
   const workbook=new ExcelJS.Workbook();workbook.creator='Company Portal';const sheet=workbook.addWorksheet('Vehicles',{views:[{state:'frozen',ySplit:1}]})
   sheet.columns=vehicleColumns(category).map(([header,key,width])=>({header,key,width}))
   sheet.getRow(1).eachCell(cell=>{cell.font={bold:true,color:{argb:'FFFFFFFF'}};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF6554DC'}};cell.alignment={vertical:'middle',wrapText:true}});sheet.autoFilter=`A1:${sheet.getColumn(sheet.columnCount).letter}1`
-  sheet.addRow(category==='maintenance'
+  if(rows)rows.forEach(row=>sheet.addRow(row));else sheet.addRow(category==='maintenance'
     ? {vehicle_name:'Example Vehicle',vehicle_type:'Truck',vehicle_plate_number:'YGN-1234',department:'Admin'}
     : {vehicle_name:'Example Vehicle',vehicle_type:'Truck',vehicle_plate_number:'YGN-1234',driver_name:'Driver Name',phone_no:'09xxxxxxxxx',status:'Free'})
   if(category==='internal')sheet.getColumn('status').eachCell((cell,row)=>{if(row>1)cell.dataValidation={type:'list',allowBlank:false,formulae:['"Free,Busy"']}})
@@ -559,6 +575,15 @@ const vehicleWorkbook=async(category:string)=>{
 app.get('/api/vehicles/template',auth,asyncRoute(async(req,res)=>{
   const category=vehicleCategoryFromRequest(req);const menuKey=vehiclePermissionKey(category);if(!await hasMenuAccess(req,menuKey))return res.status(403).json({error:`Permission denied: ${menuKey}`})
   const buffer=await (await vehicleWorkbook(category)).xlsx.writeBuffer();res.setHeader('Content-Disposition',`attachment; filename="${category}-vehicle-import-template.xlsx"`);res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').send(Buffer.from(buffer))
+}))
+
+app.get('/api/vehicles/export',auth,asyncRoute(async(req,res)=>{
+  const category=vehicleCategoryFromRequest(req);const menuKey=vehiclePermissionKey(category);if(!await hasMenuAccess(req,menuKey))return res.status(403).json({error:`Permission denied: ${menuKey}`})
+  const company=(await db.query('SELECT company_id FROM employees WHERE id=$1',[req.user!.employeeId])).rows[0]
+  const filter=(key:string)=>typeof req.query[key]==='string'?String(req.query[key]).trim():null
+  const vehicleName=filter('vehicleName'),vehicleType=filter('vehicleType'),plateNumber=filter('plateNumber'),department=filter('department'),driverName=filter('driverName'),phoneNo=filter('phoneNo'),status=filter('status')
+  const result=await db.query(`SELECT vehicle_name,vehicle_type,vehicle_plate_number,department,driver_name,phone_no,status FROM vehicles WHERE company_id=$1 AND vehicle_category=$2 AND is_active=true AND ($3::text IS NULL OR vehicle_name ILIKE '%'||$3||'%') AND ($4::text IS NULL OR vehicle_type ILIKE '%'||$4||'%') AND ($5::text IS NULL OR vehicle_plate_number ILIKE '%'||$5||'%') AND ($6::text IS NULL OR department ILIKE '%'||$6||'%') AND ($7::text IS NULL OR driver_name ILIKE '%'||$7||'%') AND ($8::text IS NULL OR phone_no ILIKE '%'||$8||'%') AND ($9::text IS NULL OR status=$9) ORDER BY created_at DESC`,[company.company_id,category,vehicleName||null,vehicleType||null,plateNumber||null,department||null,driverName||null,phoneNo||null,status||null])
+  const buffer=await (await vehicleWorkbook(category,result.rows)).xlsx.writeBuffer();res.setHeader('Content-Disposition',`attachment; filename="${category}-vehicles-${new Date().toISOString().slice(0,10)}.xlsx"`);res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').send(Buffer.from(buffer))
 }))
 
 app.post('/api/vehicles/import',auth,upload.single('file'),asyncRoute(async(req,res)=>{
