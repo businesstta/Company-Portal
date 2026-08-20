@@ -132,9 +132,68 @@ pnpm lint
 
 Both commands must pass before deployment.
 
+## Automatic localhost-to-cloud deployment
+
+Saving a file on localhost does not directly change the cloud server. The automatic release starts after the reviewed local changes are committed and pushed to the configured Git branch:
+
+```text
+Local development
+  -> pnpm check
+  -> git commit and git push
+  -> GitHub Actions validation
+  -> SSH to the cloud server
+  -> database and upload backup
+  -> fetch the exact Git commit
+  -> Docker build and restart
+  -> database migrations
+  -> health check
+```
+
+The supplied [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) uses this branch policy:
+
+| Pushed branch | Result |
+| --- | --- |
+| `develop` | Validate and automatically deploy the exact commit to staging |
+| `main` | Validate and automatically deploy the exact commit to production |
+| Other branches | No deployment; use a pull request to reach `develop` or `main` |
+
+### One-time GitHub and server setup
+
+1. Create `staging` and `production` under **GitHub repository Settings -> Environments**.
+2. Add the following secrets separately to each environment:
+   - `DEPLOY_HOST`: cloud server hostname or IP address.
+   - `DEPLOY_USER`: dedicated non-root Ubuntu deployment user.
+   - `DEPLOY_SSH_KEY`: private SSH deploy key. Install only its public key on the server.
+   - `DEPLOY_KNOWN_HOSTS`: independently verified SSH host-key entry.
+3. Add these environment variables:
+   - `DEPLOY_PORT`: normally `22`.
+   - `DEPLOY_PATH`: `/opt/ess-portal-staging` or `/opt/ess-portal-production`.
+4. Keep a protected, untracked `.env` file inside each server deployment path.
+5. Clone `develop` into the staging path and `main` into the production path.
+6. Run one manual deployment on each environment to verify SSH, Docker, backups and health checks before enabling routine automatic deployment.
+
+The production GitHub Environment may have required reviewers. When it does, a `main` push starts the workflow automatically but waits for approval before SSH deployment. Remove that reviewer rule only when the organization explicitly accepts fully unattended production releases.
+
+### Routine developer process
+
+Test and publish to staging:
+
+```bash
+git switch develop
+git pull --ff-only
+pnpm check
+git add -- <reviewed-files>
+git commit -m "Describe the ESS Portal change"
+git push origin develop
+```
+
+After staging acceptance, open a pull request from `develop` to `main`. Merging that pull request pushes a reviewed commit to `main`; GitHub Actions then updates production automatically. Do not bypass branch protection or push unreviewed local work directly to production.
+
+The remote [`deploy/deploy.sh`](deploy/deploy.sh) script creates timestamped PostgreSQL and upload backups, deploys the exact requested revision, validates Docker Compose, rebuilds containers and verifies the web health endpoint. If validation or health checks fail, the GitHub Actions run fails and the server logs must be reviewed. Never use `docker compose down -v` because it deletes persistent volumes.
+
 ## Production deployment with Docker Compose on Linux
 
-For automatic `develop` → staging and approved `main` → production deployments on a shared Ubuntu server, see [DEPLOYMENT.md](DEPLOYMENT.md).
+For the complete server handover, rollback and monitoring procedure, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 This is the recommended Linux deployment. It runs PostgreSQL, the API, the administration web app, and the employee app as separate containers. Database files and uploaded attachments are stored in named Docker volumes, so recreating a container does not erase application data.
 

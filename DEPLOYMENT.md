@@ -7,8 +7,8 @@ This guide keeps the Meeting Room application isolated while running ESS Portal 
 - Local work is pushed to `develop` for automatic staging deployment.
 - Reviewers use the staging domains to test the current `develop` revision.
 - A reviewed pull request merges `develop` into `main`.
-- A push to `main` validates the production candidate but does not deploy it automatically.
-- Production is deployed with the manual `production` workflow target and can additionally require GitHub environment approval.
+- A push or reviewed merge to `main` validates and automatically deploys the exact production commit.
+- The manual `production` workflow target remains available for an authorized redeployment. A protected GitHub production environment can still require approval.
 
 The workflow always runs `pnpm check` before either deployment. The remote deploy script backs up the existing database and uploaded files, rebuilds the Docker images, runs migrations during API startup, and verifies `/health`.
 
@@ -131,7 +131,7 @@ Replace every example hostname and port with approved values. Obtain TLS certifi
 
 ## Updating and monitoring
 
-Pushing `develop` runs validation and deploys staging. Pushing `main` validates the production candidate without changing the server. Deploy production manually from **Actions → Validate and deploy → Run workflow**, select the `main` branch and choose `production`; the configured environment approval gate then applies.
+Pushing `develop` runs validation and deploys staging. Pushing or merging to `main` validates the exact commit and automatically starts production deployment. If the production Environment has required reviewers, approve the waiting job in GitHub Actions. The manual path remains available from **Actions → Validate and deploy → Run workflow** by selecting the `main` branch and `production` target.
 
 On Ubuntu:
 

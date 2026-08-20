@@ -63,7 +63,9 @@ jobs:
 
   deploy-production:
     needs: validate
-    if: github.event_name == 'workflow_dispatch' && inputs.target == 'production'
+    if: >-
+      (github.event_name == 'push' && github.ref_name == 'main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'production')
     runs-on: ubuntu-latest
     environment: production
     steps:
