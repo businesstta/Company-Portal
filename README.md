@@ -102,7 +102,7 @@ Windows users can alternatively run `run-localhost.bat` from the repository root
 | Administration web app | `http://localhost:5180` |
 | Employee app | `http://localhost:5174` |
 
-Development seed credentials are `kyaw thu` / `Admin@123`. Change all seeded credentials before exposing any environment publicly.
+Development seed credentials must be supplied through the untracked `SEED_ADMIN_PASSWORD` and `SEED_EMPLOYEE_PASSWORD` environment variables. Never commit real credentials or expose seeded accounts publicly.
 
 ## Environment variables
 

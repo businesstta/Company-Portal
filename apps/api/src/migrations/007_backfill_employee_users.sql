@@ -8,7 +8,7 @@ SELECT e.id,
          ) THEN lower(trim(e.first_name || ' ' || e.last_name)) || ' ' || lower(e.employee_no)
          ELSE lower(trim(e.first_name || ' ' || e.last_name))
        END,
-       crypt('Employee@123', gen_salt('bf', 12)),
+       crypt(encode(gen_random_bytes(24), 'hex'), gen_salt('bf', 12)),
        'employee'
 FROM employees e
 LEFT JOIN users u ON u.employee_id = e.id

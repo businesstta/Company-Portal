@@ -13,6 +13,7 @@ import "./approval-workflow.css";
 import "./assigned-vehicle.css";
 import FerryManagement from "./FerryManagement";
 import ITAssetManagement from "./ITAssetManagement";
+import LearningManagement from "./LearningManagement";
 import "./select-design.css";
 import "./theme.css";
 
@@ -36,6 +37,7 @@ const humanResourceSubmenus = [
   "Leave",
   "Overtime",
   "Appraisals",
+  "Learning Management",
 ];
 const corporateSubmenus = [
   "Payment Request Form",
@@ -449,6 +451,7 @@ const employeeFields: [string, string, string, string?][] = [
   ["DOB (Eng)", "date_of_birth", "dob", "date"],
   ["Age", "age", "age", "number"],
   ["Join Date", "joined_on", "joinDate", "date"],
+  ["Probation Date", "probation_date", "probationDate", "date"],
   ["Permanent Date", "permanent_date", "permanentDate", "date"],
   ["Service Year", "service_year", "serviceYear", "number"],
   ["Gender", "gender", "gender"],
@@ -492,6 +495,7 @@ const employeeFieldGroups = [
       "organization",
       "project_location",
       "joined_on",
+      "probation_date",
       "permanent_date",
       "service_year",
       "employment_type",
@@ -766,6 +770,7 @@ function DataPage({
     string,
     FormDataEntryValue
   > | null>(null);
+  const [pendingEmployeeAttachments, setPendingEmployeeAttachments] = useState<File[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<Record<
     string,
     unknown
@@ -808,7 +813,6 @@ function DataPage({
   });
   const [userPage, setUserPage] = useState(1);
   const [userPageSize, setUserPageSize] = useState(25);
-  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [roleOptions, setRoleOptions] = useState<RoleOption[]>(defaultRoleOptions);
   const [showCreateRole, setShowCreateRole] = useState(false);
   const [pendingRoleName, setPendingRoleName] = useState("");
@@ -1086,9 +1090,34 @@ function DataPage({
     });
     return()=>window.cancelAnimationFrame(frame);
   },[page,selectedCorporateRequest]);
+  const employeeFilesFromForm = (form: FormData) => {
+    const files = form.getAll("attachments").filter((value): value is File => value instanceof File && value.size > 0);
+    if (files.length > 10) { alert("Select no more than 10 employee documents at a time."); return null; }
+    const tooLarge = files.find((file) => file.size > 20 * 1024 * 1024);
+    if (tooLarge) { alert(`${tooLarge.name} is larger than the 20 MB file limit.`); return null; }
+    const allowed = /\.(pdf|docx?|xlsx?|pptx?|txt|csv|rtf|odt|ods|odp|jpe?g|png|webp|gif|bmp|tiff?|heic|eml|msg|zip|rar|7z)$/i;
+    const unsupported = files.find((file) => !allowed.test(file.name));
+    if (unsupported) { alert(`${unsupported.name} is not a supported employee document type.`); return null; }
+    return files;
+  };
   const createEmployee = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setPendingEmployee(Object.fromEntries(new FormData(e.currentTarget)));
+    const form = new FormData(e.currentTarget);
+    const attachments = employeeFilesFromForm(form);if (!attachments) return;
+    setPendingEmployee(Object.fromEntries(Array.from(form.entries()).filter(([key]) => key !== "attachments")));
+    setPendingEmployeeAttachments(attachments);
+  };
+  const uploadEmployeeAttachments = async (employeeId: unknown, files: File[]) => {
+    if (!files.length) return true;
+    const body = new FormData();
+    files.forEach((file) => body.append("attachments", file));
+    const response = await fetch(`${API}/employees/${employeeId}/attachments`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      alert(String(result.error ?? "Employee was saved, but the documents could not be uploaded."));
+      return false;
+    }
+    return true;
   };
   const confirmCreateEmployee = async () => {
     if (!pendingEmployee) return;
@@ -1101,12 +1130,16 @@ function DataPage({
       body: JSON.stringify(pendingEmployee),
     });
     if (r.ok) {
+      const employee = await r.json();
+      await uploadEmployeeAttachments(employee.id, pendingEmployeeAttachments);
       setPendingEmployee(null);
+      setPendingEmployeeAttachments([]);
       setShowForm(false);
       load();
     } else {
       const result = await r.json();
       setPendingEmployee(null);
+      setPendingEmployeeAttachments([]);
       alert(
         result.error ??
           result.details?.[0]?.message ??
@@ -1127,7 +1160,9 @@ function DataPage({
     e.preventDefault();
     if (!selectedEmployee) return;
     const id = selectedEmployee.id;
-    const body = Object.fromEntries(new FormData(e.currentTarget));
+    const form = new FormData(e.currentTarget);
+    const attachments = employeeFilesFromForm(form);if (!attachments) return;
+    const body = Object.fromEntries(Array.from(form.entries()).filter(([key]) => key !== "attachments"));
     const r = await fetch(`${API}/employees/${id}`, {
       method: "PUT",
       headers: {
@@ -1137,10 +1172,26 @@ function DataPage({
       body: JSON.stringify(body),
     });
     if (r.ok) {
+      await uploadEmployeeAttachments(id, attachments);
       await selectEmployee(id);
       setEditingEmployee(false);
       load();
     } else alert((await r.json()).error ?? "Unable to update employee");
+  };
+  const openEmployeeAttachment = async (employeeId: unknown, attachmentId: unknown) => {
+    const response = await fetch(`${API}/employees/${employeeId}/attachments/${attachmentId}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok) return alert("Unable to download employee document");
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+    const fallbackName = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+    const name = encodedName ? decodeURIComponent(encodedName) : fallbackName ?? "employee-document";
+    const url = URL.createObjectURL(await response.blob());const anchor=document.createElement("a");anchor.href=url;anchor.download=name;anchor.click();window.setTimeout(()=>URL.revokeObjectURL(url),0);
+  };
+  const removeEmployeeAttachment = async (employeeId: unknown, attachmentId: unknown) => {
+    if (!window.confirm("Remove this employee document?")) return;
+    const response = await fetch(`${API}/employees/${employeeId}/attachments/${attachmentId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok) return alert("Unable to remove employee document");
+    await selectEmployee(employeeId);
   };
   const decide = async () => {
     if (!confirmation) return;
@@ -1791,7 +1842,9 @@ function DataPage({
           ? "organization"
           : key === "project_location"
             ? "project_location"
-            : "";
+            : key === "branch"
+              ? "branch"
+              : "";
     if (masterType)
       return (
         <label key={key}>
@@ -1861,6 +1914,7 @@ function DataPage({
   };
   if (page === "Ferry Management") return <FerryManagement token={token} />;
   if (page === "IT Asset Management") return <ITAssetManagement token={token} onNavigate={onNavigate} />;
+  if (page === "Learning Management") return <LearningManagement token={token} role={role} />;
   if (!endpoint)
     return (
       <div className="empty-page">
@@ -2315,6 +2369,7 @@ function DataPage({
       ["department", "Department"],
       ["organization", "Organization"],
       ["project_location", "Project Location"],
+      ["branch", "Branch"],
     ];
     return (
       <>
@@ -2856,7 +2911,8 @@ function DataPage({
           </div>
         </section>
         <section className="data-card users-role-card">
-          <table>
+          <div className="users-role-table-scroll">
+            <table>
             <thead>
               <tr>
                 <th>Employee ID</th>
@@ -2868,19 +2924,12 @@ function DataPage({
                 <th>Report To</th>
                 <th>Role</th>
                 <th>User Name</th>
-                <th>Password</th>
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {pagedUserRows.map((r, i) => {
-                const passwordKey = String(r.id ?? r.username ?? i);
-                const visiblePassword = Boolean(visiblePasswords[passwordKey]);
-                const realPassword = String(r.password_plain ?? r.initial_password ?? r.temporary_password ?? "");
-                const maskedPassword = String(r.password_mask ?? "********");
-                const passwordDisplay = visiblePassword ? (realPassword || "Encrypted — reset to change") : maskedPassword;
-                return (
-                <tr key={passwordKey}>
+              {pagedUserRows.map((r, i) => (
+                <tr key={String(r.id ?? r.username ?? i)}>
                   <td>{String(r.employee_no ?? "—")}</td>
                   <td>
                     <b>
@@ -2907,23 +2956,12 @@ function DataPage({
                     </select>
                   </td>
                   <td className="username-cell">{String(r.username ?? "—")}</td>
-                  <td className="password-cell">
-                    <span className={visiblePassword && !realPassword ? "password-protected-note" : ""}>{passwordDisplay}</span>
-                    <button
-                      type="button"
-                      className="password-eye-button"
-                      title={realPassword ? (visiblePassword ? "Hide password" : "Show password") : "Password is encrypted. Use reset password to set a new one."}
-                      aria-label={visiblePassword ? "Hide password" : "Show password"}
-                      onClick={() => setVisiblePasswords((current) => ({ ...current, [passwordKey]: !current[passwordKey] }))}
-                    >
-                      {visiblePassword ? "Hide" : "View"}
-                    </button>
-                  </td>
                   <td><button className="reset-password-button" onClick={() => { setResetMessage(""); setResetUser(r); }}>Reset password</button></td>
                 </tr>
-              )})}
+              ))}
             </tbody>
-          </table>
+            </table>
+          </div>
           {filteredUserRows.length > 0 && (
             <div className="employee-pagination">
               <div>
@@ -2951,8 +2989,8 @@ function DataPage({
               <div className="password-reset-icon">↻</div>
               <h2>Reset Password</h2>
               <p>{String(resetUser.first_name ?? "")} {String(resetUser.last_name ?? "")} · {String(resetUser.username ?? "")}</p>
-              <label>New Password<input name="newPassword" type="password" minLength={8} required /></label>
-              <label>Confirm Password<input name="confirmPassword" type="password" minLength={8} required /></label>
+              <label>New Password<input name="newPassword" type="password" required /></label>
+              <label>Confirm Password<input name="confirmPassword" type="password" required /></label>
               {resetMessage && <div className={resetMessage.includes("successfully") ? "reset-success" : "reset-error"}>{resetMessage}</div>}
               <div className="password-reset-actions">
                 <button type="button" onClick={() => setResetUser(null)}>Cancel</button>
@@ -3235,6 +3273,10 @@ function DataPage({
                 />
               </label>
               <label>
+                Probation Date
+                <input name="probationDate" type="date" />
+              </label>
+              <label>
                 Permanent Date
                 <input name="permanentDate" type="date" />
               </label>
@@ -3257,7 +3299,14 @@ function DataPage({
               </label>
               <label>
                 Branch
-                <input name="branch" />
+                <select name="branch">
+                  <option value="">Select Branch</option>
+                  {masterItems
+                    .filter((item) => item.item_type === "branch")
+                    .map((item) => (
+                      <option key={String(item.id)}>{String(item.name)}</option>
+                    ))}
+                </select>
               </label>
               <label>
                 Resign / Retired / Terminate Date
@@ -3395,6 +3444,21 @@ function DataPage({
               <label>
                 Bank Account / Pay Number
                 <input name="bankAccountPayNumber" />
+              </label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Employee documents</legend>
+            <div className="employee-document-grid">
+              <label className="employee-document-upload">
+                Attachments
+                <input
+                  name="attachments"
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.ods,.odp,.jpg,.jpeg,.png,.webp,.gif,.bmp,.tif,.tiff,.heic,.eml,.msg,.zip,.rar,.7z"
+                />
+                <small>PDF, Office, OpenDocument, text, CSV, images, email and archive files. Up to 10 files, maximum 20 MB each.</small>
               </label>
             </div>
           </fieldset>
@@ -3650,7 +3714,7 @@ function DataPage({
       {pendingEmployee && (
         <SaveEmployeeDialog
           name={String(pendingEmployee.nameEng ?? pendingEmployee.employeeNo)}
-          onCancel={() => setPendingEmployee(null)}
+          onCancel={() => { setPendingEmployee(null); setPendingEmployeeAttachments([]); }}
           onConfirm={confirmCreateEmployee}
         />
       )}{" "}
@@ -3685,6 +3749,21 @@ function DataPage({
                     </div>
                   </fieldset>
                 ))}
+                <fieldset>
+                  <legend>Employee documents</legend>
+                  <div className="employee-document-grid">
+                    <label className="employee-document-upload">
+                      Add attachments
+                      <input
+                        name="attachments"
+                        type="file"
+                        multiple
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.ods,.odp,.jpg,.jpeg,.png,.webp,.gif,.bmp,.tif,.tiff,.heic,.eml,.msg,.zip,.rar,.7z"
+                      />
+                      <small>Up to 10 files, maximum 20 MB each.</small>
+                    </label>
+                  </div>
+                </fieldset>
                 <footer>
                   <button
                     type="button"
@@ -3730,6 +3809,14 @@ function DataPage({
                     );
                   })}
                 </div>
+                <section className="employee-document-list">
+                  <header><div><small>EMPLOYEE DOCUMENTS</small><h3>Attachments</h3></div><span>{Array.isArray(selectedEmployee.attachments) ? selectedEmployee.attachments.length : 0} files</span></header>
+                  {Array.isArray(selectedEmployee.attachments) && selectedEmployee.attachments.length ? (
+                    <div>{(selectedEmployee.attachments as Record<string, unknown>[]).map((file) => (
+                      <article key={String(file.id)}><button type="button" onClick={() => void openEmployeeAttachment(selectedEmployee.id, file.id)}><span>↧</span><div><b>{String(file.original_name)}</b><small>{String(file.mime_type || "Document")} · {(Number(file.file_size) / 1024).toFixed(1)} KB</small></div></button>{["admin", "hr"].includes(role) && <button type="button" className="employee-document-remove" aria-label={`Remove ${String(file.original_name)}`} onClick={() => void removeEmployeeAttachment(selectedEmployee.id, file.id)}>×</button>}</article>
+                    ))}</div>
+                  ) : <p>No employee documents uploaded.</p>}
+                </section>
               </>
             )}
           </aside>
@@ -3782,6 +3869,7 @@ function App() {
     Leave: "ခွင့်",
     Overtime: "အချိန်ပို",
     Appraisals: "အကဲဖြတ်မှု",
+    "Learning Management": "သင်ယူမှု စီမံခန့်ခွဲရေး",
     Announcements: "ကြေညာချက်များ",
     Notification: "အသိပေးချက်များ",
     Reports: "အစီရင်ခံစာများ",
@@ -3973,7 +4061,7 @@ function App() {
               <input
                 name="username"
                 type="text"
-                defaultValue="kyaw thu"
+                defaultValue="admin"
                 autoCapitalize="none"
                 required
               />
@@ -3983,9 +4071,8 @@ function App() {
               <input
                 name="password"
                 type="password"
-                defaultValue="Admin@123"
+                placeholder="Enter a temporary password"
                 required
-                minLength={8}
               />
             </label>
             {loginError && <div className="login-error">{loginError}</div>}
