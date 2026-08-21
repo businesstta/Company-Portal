@@ -40,3 +40,8 @@
 .lms-form-grid>label{align-content:start}
 .lms-form-grid>label:not(.check)>input,.lms-form-grid>label:not(.check)>select{height:40px}
 .lms-form-grid>label>small{min-height:14px;color:#73818e;font-size:9px;font-weight:600;letter-spacing:.04em;line-height:1.45}
+
+/* Compact editor access for HR/admin without crowding module cards. */
+.lms-course-admin-bar>div{display:flex;gap:7px}.lms-course-admin-bar .lms-edit-action{border-color:var(--theme-navy);background:var(--theme-navy);color:#fff}.lms-course-admin-bar .lms-edit-action:hover{background:var(--theme-navy-soft)}
+.lms-edit-strip{display:flex;align-items:flex-start;gap:12px;min-width:0;padding:10px 12px;border:1px solid #dfe6eb;border-radius:10px;background:#fff}.lms-edit-strip>strong{flex:0 0 auto;padding-top:6px;font-size:10px;color:#667583}.lms-edit-strip>div{display:flex;gap:7px;min-width:0;overflow-x:auto;padding-bottom:3px}.lms-edit-strip>div>span{display:flex;gap:5px;flex:0 0 auto;padding-right:7px;border-right:1px solid #e4e9ed}.lms-edit-strip button{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid #cfdbe2;border-radius:7px;background:#f8fafb;color:var(--theme-navy);padding:6px 9px;font-size:9px;font-weight:800;cursor:pointer}.lms-edit-strip button:first-child{border-color:var(--theme-navy);background:var(--theme-navy);color:#fff}.lms-edit-strip button:hover{border-color:var(--theme-lemon);background:#fff9dc;color:var(--theme-navy)}
+@media(max-width:700px){.lms-course-admin-bar{align-items:flex-start;flex-direction:column}.lms-course-admin-bar>div{width:100%}.lms-course-admin-bar>div button{flex:1}.lms-edit-strip{flex-direction:column}.lms-edit-strip>div{width:100%}}
