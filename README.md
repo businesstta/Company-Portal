@@ -549,7 +549,7 @@ server {
     server_name portal.example.com;
     root /opt/company-portal/apps/web/dist;
     index index.html;
-    client_max_body_size 12m;
+    client_max_body_size 110m;
 
     location /api/ {
         proxy_pass http://127.0.0.1:4000;
@@ -575,7 +575,7 @@ server {
     server_name employee.example.com;
     root /opt/company-portal/apps/mobile/dist;
     index index.html;
-    client_max_body_size 12m;
+    client_max_body_size 110m;
 
     location /api/ {
         proxy_pass http://127.0.0.1:4000;
