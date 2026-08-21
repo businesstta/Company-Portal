@@ -119,7 +119,7 @@ button.primary,
 .create-role-button,
 .role-create-actions .primary,
 .banner-settings-card button,
-.approval-workflow-card button,
+.approval-workflow-card footer button,
 .confirm-approve,
 .ferry-status-dialog>button{
   border-color:var(--theme-navy)!important;
@@ -145,7 +145,7 @@ button.primary:hover,
 .permission-save-bar button:hover,
 .create-role-button:hover,
 .banner-settings-card button:hover,
-.approval-workflow-card button:hover{
+.approval-workflow-card footer button:hover{
   border-color:var(--theme-navy-hover)!important;
   background:var(--theme-navy-hover)!important;
 }
