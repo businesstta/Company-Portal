@@ -824,6 +824,10 @@ function DataPage({
   const [paymentAmountText, setPaymentAmountText] = useState("");
   const [paymentTypeValue, setPaymentTypeValue] = useState("");
   const [paymentCurrency, setPaymentCurrency] = useState("MMK");
+  const [eligibleAdvances,setEligibleAdvances]=useState<Record<string,unknown>[]>([]);
+  const [selectedAdvanceId,setSelectedAdvanceId]=useState("");
+  const [clearanceActualCost,setClearanceActualCost]=useState(0);
+  const [clearanceFilters,setClearanceFilters]=useState({from:"",to:"",employee:"",department:"",businessUnit:"",requestId:""});
   const [paymentReportFilters,setPaymentReportFilters]=useState({from:"",to:"",status:"",department:"",search:""});
   const [paymentReportPage, setPaymentReportPage] = useState(1);
   const [paymentReportPageSize, setPaymentReportPageSize] = useState(25);
@@ -1060,7 +1064,7 @@ function DataPage({
     setImportResult("");
   }, [page]);
   useEffect(() => {
-    if (page === "Employees" || page === "Item Master" || page === "Payment Request Form" || page === "Vehicle Request Form")
+    if (page === "Employees" || page === "Item Master" || page === "Payment Request Form" || page === "Advance Clearance Request Form" || page === "Vehicle Request Form")
       fetch(`${API}/item-master`, {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -1068,11 +1072,12 @@ function DataPage({
         .then((data) => setMasterItems(Array.isArray(data) ? data : []));
   }, [page, token]);
   useEffect(() => {
-    if (page !== "Payment Request Form" && page !== "Vehicle Request Form") return;
+    if (page !== "Payment Request Form" && page !== "Advance Clearance Request Form" && page !== "Vehicle Request Form") return;
     fetch(`${API}/profile`, { headers: { Authorization: `Bearer ${token}` } })
       .then((response) => response.json())
       .then((profile) => setPaymentProfile(profile ?? {}));
   }, [page, token]);
+  useEffect(()=>{if(page!=="Advance Clearance Request Form")return;fetch(`${API}/corporate-requests/eligible-advances?type=advance_clearance`,{headers:{Authorization:`Bearer ${token}`}}).then(response=>response.json()).then(data=>setEligibleAdvances(Array.isArray(data)?data:[])).catch(()=>setEligibleAdvances([]))},[page,token,rows]);
   useEffect(() => {
     if (page !== "Vehicle Request Form") return;
     fetch(`${API}/vehicles?category=internal`, { headers: { Authorization: `Bearer ${token}` } })
@@ -1449,8 +1454,9 @@ function DataPage({
   const createCorporate = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const isPayment = page === "Payment Request Form";
+    const isAdvanceClearance = page === "Advance Clearance Request Form";
     const isVehicleRequest = page === "Vehicle Request Form";
-    if ((isPayment || isVehicleRequest) && !paymentSubmitConfirmedRef.current) {
+    if ((isPayment || isAdvanceClearance || isVehicleRequest) && !paymentSubmitConfirmedRef.current) {
       paymentRequestFormRef.current = e.currentTarget;
       setShowPaymentSubmitConfirmation(true);
       return;
@@ -1471,6 +1477,7 @@ function DataPage({
         remark: f.get("remark"),
       }));
     }
+    if(isAdvanceClearance){const advance=eligibleAdvances.find(item=>String(item.id)===String(f.get("paymentRequestId")));const advanceAmount=Number(advance?.amount??0),actualCost=Number(f.get("actualCost")??0),balance=advanceAmount-actualCost;f.set("requestType","advance_clearance");f.set("payee",String(advance?.reference_no??""));f.set("purpose",String(f.get("remark")??"Advance clearance"));f.set("amount",String(advanceAmount));f.set("currency",String(advance?.currency??"MMK"));f.set("details",JSON.stringify({businessUnit:f.get("businessUnit"),dbVrNo:f.get("dbVrNo"),paymentRequestId:f.get("paymentRequestId"),paymentRequestReference:advance?.reference_no,advanceAmount,actualCost,balance,total:balance,remark:f.get("remark")}))}
     if (isVehicleRequest) {
       f.set("requestType", "vehicle_request");
       f.set("purpose", String(f.get("activities") ?? ""));
@@ -1491,7 +1498,7 @@ function DataPage({
         department: paymentProfile.department,
       }));
     }
-    const usesMultipart = isPayment || isVehicleRequest;
+    const usesMultipart = isPayment || isAdvanceClearance || isVehicleRequest;
     const r = await fetch(`${API}/corporate-requests?type=${isPayment?'payment':corporateType[page]}`, {
       method: "POST",
       headers: usesMultipart ? { Authorization: `Bearer ${token}` } : {
@@ -2097,6 +2104,7 @@ function DataPage({
       {corporateConfirmation&&<ConfirmDialog confirmation={corporateConfirmation} onCancel={()=>setCorporateConfirmation(null)} onConfirm={actCorporateRequest}/>}
     </>
   }
+  const advanceClearanceRows=page==="Advance Clearance Request Form"?listRows.filter(row=>{const details=requestDetails(row),created=new Date(String(row.created_at??row.request_date)),from=clearanceFilters.from?new Date(`${clearanceFilters.from}T00:00:00`):null,to=clearanceFilters.to?new Date(`${clearanceFilters.to}T23:59:59`):null,includes=(value:unknown,search:string)=>String(value??"").toLowerCase().includes(search.trim().toLowerCase());return(!from||created>=from)&&(!to||created<=to)&&includes(row.employee_name,clearanceFilters.employee)&&includes(row.employee_department,clearanceFilters.department)&&includes(row.business_units??details.businessUnit,clearanceFilters.businessUnit)&&includes(row.reference_no,clearanceFilters.requestId)}):listRows;
   if (corporateType[page])
     return (
       <>
@@ -2134,6 +2142,26 @@ function DataPage({
             </div></fieldset>
             <div className="payment-approval-note"><b>Approval workflow</b><span>Department Head Approver → Finance Approver → Cashier</span><small>Approvers are assigned from Users & Roles → Approval Setup.</small></div>
             <div className="form-footer"><button type="button" onClick={() => setShowForm(false)}>Cancel</button><button type="button" className="primary" onClick={(event)=>{const form=event.currentTarget.form;if(!form?.reportValidity())return;paymentRequestFormRef.current=form;setShowPaymentSubmitConfirmation(true)}}>Submit Payment Request</button></div>
+          </form>
+          ) : page === "Advance Clearance Request Form" ? (
+          <form ref={paymentRequestFormRef} className="employee-form payment-request-form advance-clearance-form" onSubmit={createCorporate}>
+            <div className="payment-form-heading"><div><p>ADVANCE CLEARANCE</p><h2>New Advance Clearance Request</h2><span>Clear an approved advance payment request and submit the actual spending details.</span></div><button type="button" onClick={()=>setShowForm(false)}>×</button></div>
+            <fieldset><legend>Requester information</legend><div className="form-grid">
+              <label>Submission Date<input value={formatDateDDMMYYYY(new Date())} readOnly/></label>
+              <label>Employee ID<input value={String(paymentProfile.employee_no??"")} readOnly/></label>
+              <label>Employee Name<input value={`${String(paymentProfile.first_name??"")} ${String(paymentProfile.last_name??"")}`.trim()} readOnly/></label>
+              <label>Employee Department<input value={String(paymentProfile.department??"")} readOnly/></label>
+              <label>Business Units *<select name="businessUnit" defaultValue={String(paymentProfile.project_location??"")} required><option value="">Select business unit</option>{masterItems.filter(item=>item.item_type==='project_location').map(item=><option key={String(item.id)} value={String(item.name)}>{String(item.name)}</option>)}</select></label>
+              <label>DB. Vr No. *<input name="dbVrNo" maxLength={100} required/></label>
+            </div></fieldset>
+            <fieldset><legend>Clearance information</legend><div className="form-grid">
+              <label className="wide">Payment Request ID *<select name="paymentRequestId" value={selectedAdvanceId} onChange={event=>{setSelectedAdvanceId(event.target.value);setClearanceActualCost(0)}} required><option value="">Select approved Advance Payment Request</option>{eligibleAdvances.map(item=><option key={String(item.id)} value={String(item.id)}>{String(item.reference_no)} · {Number(item.amount).toLocaleString()} {String(item.currency)}</option>)}</select><small>{eligibleAdvances.length?"Only your approved and uncleared Advance requests are shown.":"No approved Advance Payment Request is available for clearance."}</small></label>
+              {(()=>{const advance=eligibleAdvances.find(item=>String(item.id)===selectedAdvanceId),advanceAmount=Number(advance?.amount??0),balance=advanceAmount-clearanceActualCost,currency=String(advance?.currency??"MMK");return <><label>Advance Amount<input value={`${advanceAmount.toLocaleString()} ${currency}`} readOnly/></label><label>Actual Cost *<input name="actualCost" type="text" inputMode="decimal" value={clearanceActualCost?clearanceActualCost.toLocaleString():""} onChange={event=>setClearanceActualCost(Number(event.target.value.replace(/[^0-9.]/g,""))||0)} required disabled={!advance}/></label><label>Balance<input value={`${balance.toLocaleString()} ${currency}`} readOnly/></label><label>Total<input value={`${balance.toLocaleString()} ${currency}`} readOnly/></label></>})()}
+              <label className="wide">Remark *<textarea name="remark" rows={4} required/></label>
+              <label className="wide payment-attachments">Attachments<input name="attachments" type="file" multiple/><small>Up to 20 files, maximum 500 MB each. Documents, spreadsheets, images, audio, video and archive files are supported.</small></label>
+            </div></fieldset>
+            <div className="payment-approval-note"><b>Approval workflow</b><span>Department Head Approver → Finance Approver → Cashier</span><small>Payment Request ID is linked to the selected approved Advance request.</small></div>
+            <div className="form-footer"><button type="button" onClick={()=>setShowForm(false)}>Cancel</button><button type="button" className="primary" onClick={event=>{const form=event.currentTarget.form;if(!form?.reportValidity())return;paymentRequestFormRef.current=form;setShowPaymentSubmitConfirmation(true)}} disabled={!selectedAdvanceId}>Submit Advance Clearance</button></div>
           </form>
           ) : page === "Vehicle Request Form" ? (
           <div className="vehicle-request-layout">
@@ -2214,13 +2242,16 @@ function DataPage({
           </form>
           )
         )}
+        {page==="Advance Clearance Request Form"&&<section className="advance-clearance-filters"><label>Date From<input type="date" value={clearanceFilters.from} onChange={event=>setClearanceFilters(current=>({...current,from:event.target.value}))}/></label><label>Date To<input type="date" value={clearanceFilters.to} onChange={event=>setClearanceFilters(current=>({...current,to:event.target.value}))}/></label><label>Employee Name<input value={clearanceFilters.employee} onChange={event=>setClearanceFilters(current=>({...current,employee:event.target.value}))} placeholder="Search employee"/></label><label>Department<input value={clearanceFilters.department} onChange={event=>setClearanceFilters(current=>({...current,department:event.target.value}))} placeholder="Search department"/></label><label>Business Unit<input value={clearanceFilters.businessUnit} onChange={event=>setClearanceFilters(current=>({...current,businessUnit:event.target.value}))} placeholder="Search business unit"/></label><label>Clearance Request ID<input value={clearanceFilters.requestId} onChange={event=>setClearanceFilters(current=>({...current,requestId:event.target.value}))} placeholder="ACR-..."/></label></section>}
         <section className="data-card">
           {loading ? (
             <div className="loading">Loading…</div>
           ) : (
             <table className="payment-request-list-table">
               <thead>
-                {page === "Vehicle Request Form" ? (
+                {page === "Advance Clearance Request Form" ? (
+                  <tr><th>Request ID</th><th>Submission Date</th><th>Employee ID</th><th>Employee Name</th><th>Department</th><th>Business Unit</th><th>DB. Vr No.</th><th>Advance</th><th>Actual Cost</th><th>Balance</th><th>Total</th><th>Payment Request ID</th><th>Status</th></tr>
+                ) : page === "Vehicle Request Form" ? (
                   <tr>
                     <th>Request ID</th>
                     <th>Submission Date</th>
@@ -2246,9 +2277,9 @@ function DataPage({
                 )}
               </thead>
               <tbody>
-                {listRows.map((r, i) => (
+                {advanceClearanceRows.map((r, i) => (
                   <tr key={String(r.id ?? i)}>
-                    {page === "Vehicle Request Form" ? (
+                    {page === "Advance Clearance Request Form" ? (()=>{const details=requestDetails(r);return <><td><b>{String(r.reference_no)}</b></td><td>{formatDateDDMMYYYY(new Date(String(r.created_at)))}</td><td>{String(r.employee_no??"—")}</td><td>{String(r.employee_name??"—")}</td><td>{String(r.employee_department??"—")}</td><td>{textValue(r.business_units??details.businessUnit)}</td><td>{textValue(details.dbVrNo)}</td><td>{Number(details.advanceAmount??r.amount).toLocaleString()} {String(r.currency)}</td><td>{Number(details.actualCost??0).toLocaleString()}</td><td>{Number(details.balance??0).toLocaleString()}</td><td>{Number(details.total??0).toLocaleString()}</td><td>{textValue(details.paymentRequestReference)}</td><td><span className={`pill ${String(r.status)}`}>{String(r.status)==="pending"&&r.pending_with?`Pending with ${String(r.pending_with)}`:String(r.status)}</span></td></>})() : page === "Vehicle Request Form" ? (
                       <>
                         <td><b>{corporateRequestId(r, "vehicle_request")}</b></td>
                         <td>{formatDateDDMMYYYY(new Date(String(r.request_date ?? r.submission_date ?? r.created_at)))}</td>
@@ -2286,7 +2317,7 @@ function DataPage({
             </table>
           )}
         </section>
-        {showPaymentSubmitConfirmation&&<div className="confirm-backdrop" onMouseDown={()=>setShowPaymentSubmitConfirmation(false)}><div className="confirm-dialog" onMouseDown={event=>event.stopPropagation()}><div className="confirm-icon approve">✓</div><h2>{page==="Vehicle Request Form"?"Submit vehicle request?":"Submit payment request?"}</h2><p>{page==="Vehicle Request Form"?"Please confirm that the vehicle request information is correct before submitting it for approval.":"Please confirm that the payment request information is correct before submitting it for approval."}</p><div><button type="button" onClick={()=>setShowPaymentSubmitConfirmation(false)}>Cancel</button><button type="button" className="confirm-approve" onClick={()=>{setShowPaymentSubmitConfirmation(false);paymentSubmitConfirmedRef.current=true;paymentRequestFormRef.current?.requestSubmit()}}>Yes, submit</button></div></div></div>}
+        {showPaymentSubmitConfirmation&&<div className="confirm-backdrop" onMouseDown={()=>setShowPaymentSubmitConfirmation(false)}><div className="confirm-dialog" onMouseDown={event=>event.stopPropagation()}><div className="confirm-icon approve">✓</div><h2>{page==="Vehicle Request Form"?"Submit vehicle request?":page==="Advance Clearance Request Form"?"Submit advance clearance?":"Submit payment request?"}</h2><p>{page==="Vehicle Request Form"?"Please confirm that the vehicle request information is correct before submitting it for approval.":page==="Advance Clearance Request Form"?"Please confirm that the clearance amounts and linked Payment Request ID are correct.":"Please confirm that the payment request information is correct before submitting it for approval."}</p><div><button type="button" onClick={()=>setShowPaymentSubmitConfirmation(false)}>Cancel</button><button type="button" className="confirm-approve" onClick={()=>{setShowPaymentSubmitConfirmation(false);paymentSubmitConfirmedRef.current=true;paymentRequestFormRef.current?.requestSubmit()}}>Yes, submit</button></div></div></div>}
       </>
     );
   if(page==="Banner"){
