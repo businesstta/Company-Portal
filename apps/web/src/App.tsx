@@ -819,6 +819,7 @@ function DataPage({
   const [permissionDraft, setPermissionDraft] = useState<Record<string, boolean>>({});
   const [permissionDirty, setPermissionDirty] = useState(false);
   const [permissionNotice, setPermissionNotice] = useState("");
+  const [permissionRole,setPermissionRole]=useState("employee");
   const [paymentProfile, setPaymentProfile] = useState<Record<string, unknown>>({});
   const [paymentAmount, setPaymentAmount] = useState(0);
   const [paymentAmountText, setPaymentAmountText] = useState("");
@@ -1358,8 +1359,8 @@ function DataPage({
   const saveBanner = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();const form=new FormData(event.currentTarget);let logoUrl=form.get('removeLogo')==='on'?'':String(form.get('existingLogo')??'');const logo=form.get('logo');if(logo instanceof File&&logo.size){const upload=new FormData();upload.append('logo',logo);const uploadResponse=await fetch(`${API}/branding/logo`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:upload});if(!uploadResponse.ok){setRoleSaveNotice({type:'error',message:(await uploadResponse.json()).error??'Unable to upload company logo.'});return}logoUrl=(await uploadResponse.json()).logoUrl}const branding:Branding={iconText:String(form.get('iconText')??'CP').trim().slice(0,3).toUpperCase(),title:String(form.get('title')??'Company Portal').trim(),subtitle:String(form.get('subtitle')??'People & Operations').trim(),iconColor:String(form.get('iconColor')??'#6d5ce7'),logoUrl};const response=await fetch(`${API}/settings/banner`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(branding)});setRoleSaveNotice(response.ok?{type:'success',message:'Navigation banner saved successfully.'}:{type:'error',message:'Unable to save navigation banner.'});if(response.ok){onBrandingChanged?.(branding);setRows(branding)}window.setTimeout(()=>setRoleSaveNotice(null),2600)
   };
-  const saveApprovalWorkflow = async (event: FormEvent<HTMLFormElement>, requestType: "payment" | "advance_clearance" | "vehicle_request", stepNames: string[]) => {
-    event.preventDefault();const form=new FormData(event.currentTarget);const steps=stepNames.map((stepName,index)=>({stepOrder:index+1,stepName,approverUserId:String(form.get(`step-${index+1}`)??'')||null}));const response=await fetch(`${API}/approval-setup/${requestType}`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({steps})});const labels:{[key:string]:string}={payment:'Payment Request',advance_clearance:'Advance Clearance',vehicle_request:'Vehicle Request'};setRoleSaveNotice(response.ok?{type:'success',message:`${labels[requestType]} workflow saved successfully.`}:{type:'error',message:'Unable to save approval workflow.'});window.setTimeout(()=>setRoleSaveNotice(null),2600);if(response.ok)load()
+  const saveApprovalWorkflow = async (event: FormEvent<HTMLFormElement>, requestType: "payment" | "taxi_charge" | "advance_clearance" | "vehicle_request", stepNames: string[]) => {
+    event.preventDefault();const form=new FormData(event.currentTarget);const steps=stepNames.map((stepName,index)=>({stepOrder:index+1,stepName,approverUserId:String(form.get(`step-${index+1}`)??'')||null}));const response=await fetch(`${API}/approval-setup/${requestType}`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({steps})});const labels:{[key:string]:string}={payment:'Payment Request',taxi_charge:'Taxi Charge',advance_clearance:'Advance Clearance',vehicle_request:'Vehicle Request'};setRoleSaveNotice(response.ok?{type:'success',message:`${labels[requestType]} workflow saved successfully.`}:{type:'error',message:'Unable to save approval workflow.'});window.setTimeout(()=>setRoleSaveNotice(null),2600);if(response.ok)load()
   };
   const downloadExcel = async (path: string, filename: string) => {
     const r = await fetch(`${API}/employees/${path}`, {
@@ -1675,6 +1676,7 @@ function DataPage({
     setPermissionDirty(true);
     setPermissionNotice("");
   };
+  const updateMenuPermission=(role:string,index:number,allowed:boolean)=>{const menu=permissionMenuItems[index];updatePermission(role,menu.key,allowed);if(menu.level===0){for(let childIndex=index+1;childIndex<permissionMenuItems.length&&permissionMenuItems[childIndex].level>0;childIndex++)updatePermission(role,permissionMenuItems[childIndex].key,allowed)}};
   const savePermissions = async () => {
     setPermissionNotice("Saving changes…");
     const changes = Object.entries(permissionDraft).filter(([key]) => !key.startsWith("admin::"));
@@ -2089,7 +2091,7 @@ function DataPage({
   }
   if (corporateApprovalType[page]) {
     const detail=selectedCorporateRequest as {request?:(Record<string,unknown>&{details?:never});steps?:(Record<string,unknown>&{acted_at?:string|null})[];attachments?:Record<string,unknown>[];canAct?:boolean} | null;
-    const request=detail?.request;const steps=detail?.steps??[];const currentStep=Number(request?.current_step??1);const detailFields=corporateRequestDetailFields(request);
+    const request=detail?.request;const steps=detail?.steps??[];const currentStep=Number(request?.current_step??1);const detailFields=corporateRequestDetailFields(request);const currentCorporateStep=steps.find(step=>Number(step.step_order)===currentStep);const advanceActionLabel=request?.request_type==='advance_clearance'&&String(currentCorporateStep?.step_name??'').toLowerCase().includes('cashier')?'Advance Cleared':request?.request_type==='advance_clearance'&&String(currentCorporateStep?.step_name??'').toLowerCase().includes('receiver')?'Advance Closed':'Approve';
     return <>
       <div className="page-title"><div><p>CORPORATE APPROVAL</p><h1>{page}</h1><span>Select a request to view its details and approval journey.</span></div></div>
       <div className={`corporate-approval-layout${detail?' detail-open':''}`}>
@@ -2101,7 +2103,7 @@ function DataPage({
           </div>
           <section className="approval-journey"><h3>Approval journey</h3>{steps.map((step,index)=>{const order=Number(step.step_order);const state=step.action?String(step.action):order===currentStep&&request.status==='pending'?'current':order>currentStep?'upcoming':'completed';return <article className={state} key={order}><i>{step.action==='approved'?'✓':step.action==='rejected'?'×':order}</i><div><b>{String(step.step_name)}</b><span>{String(step.approver_name??'Approver not assigned')}</span>{step.acted_at&&<small>{new Date(String(step.acted_at)).toLocaleString()}</small>}{Boolean(step.comment)&&<small className="approval-step-comment">Comment: {String(step.comment)}</small>}</div><em>{state==='current'?'Waiting for approval':state==='upcoming'?'Next approver':String(step.action??'Completed')}</em>{index<steps.length-1&&<u/>}</article>})}</section>
           {Boolean(detail.attachments?.length)&&<section className="detail-attachments"><h3>Attachments</h3>{detail.attachments?.map(file=><button type="button" key={String(file.id)} onClick={()=>openCorporateAttachment(request.id,file)}><span>↗</span><div><b>{String(file.original_name)}</b><small>{String(file.mime_type)} · {(Number(file.file_size)/1024).toFixed(1)} KB</small></div></button>)}</section>}
-          {detail.canAct&&<footer className="corporate-approval-actions"><button className="reject" onClick={()=>setCorporateConfirmation({id:String(request.id),action:'rejected',name:corporateRequestId(request)})}>Reject</button><button className="approve" onClick={()=>setCorporateConfirmation({id:String(request.id),action:'approved',name:corporateRequestId(request)})}>Approve</button></footer>}
+          {detail.canAct&&<footer className="corporate-approval-actions"><button className="reject" onClick={()=>setCorporateConfirmation({id:String(request.id),action:'rejected',name:corporateRequestId(request)})}>Reject</button><button className="approve" onClick={()=>setCorporateConfirmation({id:String(request.id),action:'approved',name:corporateRequestId(request)})}>{advanceActionLabel}</button></footer>}
         </aside>}
       </div>
       {corporateConfirmation&&<ConfirmDialog confirmation={corporateConfirmation} onCancel={()=>setCorporateConfirmation(null)} onConfirm={actCorporateRequest}/>}
@@ -2275,6 +2277,7 @@ function DataPage({
                     <th>Pay To</th>
                     <th>Description</th>
                     <th>Amount</th>
+                    {page === "Payment Request Form"&&<th>Advance Status</th>}
                     <th>Status</th>
                   </tr>
                 )}
@@ -2307,6 +2310,7 @@ function DataPage({
                     <td>
                       {Number(r.amount).toLocaleString()} {String(r.currency)}
                     </td>
+                    {page === "Payment Request Form"&&<td>{String(r.advance_status??"—")}</td>}
                     <td>
                       <span className={`pill ${String(r.status)}`}>
                         {String(r.status)==="pending"&&r.pending_with?`Pending with ${String(r.pending_with)}`:String(r.status)}
@@ -2328,15 +2332,18 @@ function DataPage({
   }
   if(page==="Approval Setup"){
     const setup=(!Array.isArray(rows)&&rows&&typeof rows==='object'?rows:{}) as {steps?:Record<string,unknown>[];users?:Record<string,unknown>[]};
-    const workflows:{type:"payment"|"advance_clearance"|"vehicle_request";title:string;short:string;steps:string[]}[]=[
-      {type:"payment",title:"Payment Request Form",short:"PAY",steps:["Department Head Approver","Finance Approver","Cashier"]},
-      {type:"advance_clearance",title:"Advance Clearance Request",short:"ADV",steps:["Department Head Approver","Finance Approver","Cashier"]},
+    const workflows:{type:"payment"|"taxi_charge"|"advance_clearance"|"vehicle_request";title:string;short:string;steps:string[]}[]=[
+      {type:"payment",title:"Payment Request Form",short:"PAY",steps:["Department Head Approver","Finance Approver","Cashier","Receiver"]},
+      {type:"taxi_charge",title:"Taxi Charge Payment",short:"TAXI",steps:["Department Head Approver","Transportation Supervisor","Finance Approver","Cashier","Receiver"]},
+      {type:"advance_clearance",title:"Advance Clearance Request",short:"ADV",steps:["Department Head Approver","Finance Approver","Cashier","Receiver"]},
       {type:"vehicle_request",title:"Vehicle Request Form",short:"VEH",steps:["Department Head Approver","Transportation Supervisor"]},
     ];
     return <><div className="page-title"><div><p>USERS & ROLES</p><h1>Approval Setup</h1><span>Assign approvers for each corporate request workflow.</span></div></div><div className="approval-setup-grid">{workflows.map((workflow)=><form className="approval-workflow-card" key={workflow.type} onSubmit={(event)=>saveApprovalWorkflow(event,workflow.type,workflow.steps)}><header><span>{workflow.short}</span><div><h2>{workflow.title}</h2><p>{workflow.steps.length}-step approval workflow</p></div></header><div className="workflow-steps">{workflow.steps.map((name,index)=>{const step=setup.steps?.find(item=>item.request_type===workflow.type&&Number(item.step_order)===index+1);const isDynamicDepartmentHead=name==="Department Head Approver"&&index===0;return <label key={name}><i>{index+1}</i><div><b>{name}</b>{isDynamicDepartmentHead?<><input type="hidden" name={`step-${index+1}`} value=""/><span className="dynamic-approver-badge">Auto from requester Report To</span></>:<SearchableApproverSelect name={`step-${index+1}`} users={setup.users??[]} defaultValue={String(step?.approver_user_id??'')} />}</div>{index<workflow.steps.length-1&&<em>›</em>}</label>})}</div><footer><button className="primary">Save workflow</button></footer></form>)}</div>{roleSaveNotice&&<div className={`role-save-popup ${roleSaveNotice.type}`}><span>{roleSaveNotice.type==='success'?'✓':'!'}</span><div><b>{roleSaveNotice.type==='success'?'Saved successfully':'Save failed'}</b><small>{roleSaveNotice.message}</small></div><button onClick={()=>setRoleSaveNotice(null)}>×</button></div>}</>
   }
   if (page === "Role Access Control") {
     const roles = roleOptions;
+    const selectedRole=roles.find(item=>item.role_key===permissionRole)??roles[0];
+    const selectedRoleKey=selectedRole?.role_key??"employee";
     return (
       <>
         <div className="page-title">
@@ -2346,42 +2353,31 @@ function DataPage({
             <span>Choose which navigation modules each role can access</span>
           </div>
         </div>
-        <section className="permission-card">
+        <section className="permission-role-toolbar"><label>Configure Role<select value={selectedRoleKey} onChange={event=>{setPermissionRole(event.target.value);setPermissionNotice("")}}>{roles.map(roleOption=><option key={roleOption.role_key} value={roleOption.role_key}>{roleOption.role_name}</option>)}</select></label><div><b>{selectedRole?.role_name??"Role"}</b><span>Selecting a main menu selects its submenus. You can then remove individual submenus or keep only the main menu.</span></div></section>
+        <section className="permission-card permission-single-role">
           <table>
             <thead>
               <tr>
                 <th>Menu</th>
-                {roles.map((role) => (
-                  <th key={role.role_key}>{role.role_name}</th>
-                ))}
+                <th>{selectedRole?.role_name??"Permission"}</th>
               </tr>
             </thead>
             <tbody>
-              {permissionMenuItems.map((menu) => (
+              {permissionMenuItems.map((menu,index) => (
                 <tr key={menu.key} className={`permission-level-${menu.level}`}>
                   <td>
                     <b>{menu.key}</b>
                   </td>
-                  {roles.map((roleOption) => {
-                    const role = roleOption.role_key;
-                    const entry = listRows.find(
-                      (row) => row.role === role && row.menu_key === menu.key,
-                    );
-                    const draftKey = `${role}::${menu.key}`;
-                    const checked = role === "admin" || (draftKey in permissionDraft ? permissionDraft[draftKey] : Boolean(entry?.allowed));
-                    return (
-                      <td key={role}>
+                  {(()=>{const role=selectedRoleKey;const entry=listRows.find(row=>row.role===role&&row.menu_key===menu.key);const draftKey=`${role}::${menu.key}`;const checked=role==="admin"||(draftKey in permissionDraft?permissionDraft[draftKey]:Boolean(entry?.allowed));return(
+                      <td>
                         <input
                           type="checkbox"
                           checked={checked}
                           disabled={role === "admin"}
-                          onChange={(e) =>
-                            updatePermission(role, menu.key, e.target.checked)
-                          }
+                          onChange={(event)=>updateMenuPermission(role,index,event.target.checked)}
                         />
                       </td>
-                    );
-                  })}
+                    )})()}
                 </tr>
               ))}
             </tbody>
