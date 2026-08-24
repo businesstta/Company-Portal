@@ -823,6 +823,8 @@ function DataPage({
   const [paymentAmount, setPaymentAmount] = useState(0);
   const [paymentAmountText, setPaymentAmountText] = useState("");
   const [paymentTypeValue, setPaymentTypeValue] = useState("");
+  const [advanceAvailable,setAdvanceAvailable]=useState(true);
+  const [outstandingAdvanceReference,setOutstandingAdvanceReference]=useState("");
   const [paymentCurrency, setPaymentCurrency] = useState("MMK");
   const [eligibleAdvances,setEligibleAdvances]=useState<Record<string,unknown>[]>([]);
   const [selectedAdvanceId,setSelectedAdvanceId]=useState("");
@@ -1078,6 +1080,7 @@ function DataPage({
       .then((profile) => setPaymentProfile(profile ?? {}));
   }, [page, token]);
   useEffect(()=>{if(page!=="Advance Clearance Request Form")return;fetch(`${API}/corporate-requests/eligible-advances?type=advance_clearance`,{headers:{Authorization:`Bearer ${token}`}}).then(response=>response.json()).then(data=>setEligibleAdvances(Array.isArray(data)?data:[])).catch(()=>setEligibleAdvances([]))},[page,token,rows]);
+  useEffect(()=>{if(page!=="Payment Request Form")return;fetch(`${API}/corporate-requests/advance-availability?type=payment`,{headers:{Authorization:`Bearer ${token}`}}).then(response=>response.json()).then(data=>{setAdvanceAvailable(Boolean(data.available));setOutstandingAdvanceReference(String(data.outstanding?.reference_no??""));if(!data.available)setPaymentTypeValue(current=>current==="Advance"?"":current)}).catch(()=>{setAdvanceAvailable(false);setOutstandingAdvanceReference("")})},[page,token,rows]);
   useEffect(() => {
     if (page !== "Vehicle Request Form") return;
     fetch(`${API}/vehicles?category=internal`, { headers: { Authorization: `Bearer ${token}` } })
@@ -2131,7 +2134,7 @@ function DataPage({
               <label>Request From Department *<select name="requestFromDepartment" defaultValue={String(paymentProfile.department??"")} required><option value="">Select department</option>{masterItems.filter(item=>item.item_type==='department').map(item=><option key={String(item.id)}>{String(item.name)}</option>)}</select></label>
             </div></fieldset>
             <fieldset><legend>Payment information</legend><div className="form-grid">
-              <label>Payment Type *<select name="paymentType" value={paymentTypeValue} onChange={event=>setPaymentTypeValue(event.target.value)} required><option value="">Select payment type</option><option>Payment</option><option>Advance</option><option>Taxi Charge</option><option>Patty Cash</option><option>Patty Cash Topup</option></select></label>
+              <label>Payment Type *<select name="paymentType" value={paymentTypeValue} onChange={event=>setPaymentTypeValue(event.target.value)} required><option value="">Select payment type</option><option>Payment</option>{advanceAvailable&&<option>Advance</option>}<option>Taxi Charge</option><option>Patty Cash</option><option>Patty Cash Topup</option></select>{!advanceAvailable&&<small className="advance-blocked-note">Advance is unavailable until {outstandingAdvanceReference||"the outstanding advance"} is cleared and approved.</small>}</label>
               <label>Payment Method *<select name="paymentMethod" key={paymentTypeValue} required disabled={!paymentTypeValue}><option value="">Select payment method</option>{(paymentTypeValue==='Payment'?['Cash','Bank Transfer','Internal Offset']:['Cash']).map(method=><option key={method}>{method}</option>)}</select></label>
               <label>Pay To *<input name="payTo" required /></label>
               <label>Currency Type *<select name="currencyType" value={paymentCurrency} onChange={event=>setPaymentCurrency(event.target.value)} required><option>USD</option><option>EURO</option><option>CNY</option><option>MMK</option><option>THB</option></select></label>
