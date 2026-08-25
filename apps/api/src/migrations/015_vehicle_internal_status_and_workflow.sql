@@ -31,7 +31,7 @@ END $$;
 
 ALTER TABLE approval_workflow_steps
   ADD CONSTRAINT approval_workflow_steps_request_type_check
-  CHECK (request_type IN ('payment', 'advance_clearance', 'vehicle_request'));
+  CHECK (request_type IN ('payment', 'taxi_charge', 'advance_clearance', 'vehicle_request'));
 
 INSERT INTO approval_workflow_steps(company_id, request_type, step_order, step_name)
 SELECT c.id, workflow.request_type, workflow.step_order, workflow.step_name
