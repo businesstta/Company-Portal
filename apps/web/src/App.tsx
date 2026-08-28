@@ -14,6 +14,7 @@ import "./assigned-vehicle.css";
 import FerryManagement from "./FerryManagement";
 import ITAssetManagement from "./ITAssetManagement";
 import LearningManagement from "./LearningManagement";
+import LearningSchedule from "./LearningSchedule";
 import "./select-design.css";
 import "./theme.css";
 
@@ -38,6 +39,7 @@ const humanResourceSubmenus = [
   "Overtime",
   "Appraisals",
   "Learning Management",
+  "L&D Schedule",
 ];
 const corporateSubmenus = [
   "Payment Request Form",
@@ -1930,6 +1932,7 @@ function DataPage({
   if (page === "Ferry Management") return <FerryManagement token={token} />;
   if (page === "IT Asset Management") return <ITAssetManagement token={token} onNavigate={onNavigate} />;
   if (page === "Learning Management") return <LearningManagement token={token} role={role} />;
+  if (page === "L&D Schedule") return <LearningSchedule token={token} role={role} />;
   if (!endpoint)
     return (
       <div className="empty-page">
@@ -3903,6 +3906,7 @@ function App() {
     Overtime: "အချိန်ပို",
     Appraisals: "အကဲဖြတ်မှု",
     "Learning Management": "သင်ယူမှု စီမံခန့်ခွဲရေး",
+    "L&D Schedule": "သင်တန်း အစီအစဉ်",
     Announcements: "ကြေညာချက်များ",
     Notification: "အသိပေးချက်များ",
     Reports: "အစီရင်ခံစာများ",
