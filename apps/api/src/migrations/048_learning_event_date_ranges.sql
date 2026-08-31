@@ -23,7 +23,7 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 DO $$ BEGIN
-  ALTER TABLE learning_training_events ADD CONSTRAINT learning_training_event_daily_time_check CHECK(end_time>start_time);
+  ALTER TABLE learning_training_events ADD CONSTRAINT learning_training_event_daily_time_check CHECK(end_time>start_time) NOT VALID;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
