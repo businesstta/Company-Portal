@@ -255,3 +255,38 @@ input[type="checkbox"],input[type="radio"]{accent-color:var(--theme-navy)}
   background:rgba(255,204,0,.14)!important;
   color:var(--theme-lemon)!important;
 }
+
+/* One bilingual typeface stack for every portal surface and native form control. */
+html,body,body *,button,input,select,option,textarea{
+  font-family:"Pyidaungsu","Noto Sans Myanmar","Myanmar Text","DM Sans",sans-serif!important;
+}
+
+/* Every modal must own the foreground so the blurred page cannot be operated. */
+[class*="backdrop"]{
+  z-index:3000!important;
+  pointer-events:auto!important;
+  overscroll-behavior:contain;
+}
+.confirm-backdrop,.role-confirm-backdrop{z-index:3100!important}
+body:has([class*="backdrop"]){overflow:hidden}
+
+/* The company work week includes Monday through Saturday. */
+.view-work_week .schedule-weekdays,.view-work_week .schedule-grid{
+  grid-template-columns:repeat(6,minmax(130px,1fr));
+}
+
+.profile-preferences{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:24px;
+  padding:20px 22px;
+  border-top:1px solid #e7ebf0;
+  background:#fafbfc;
+}
+.profile-preferences small{color:#6575a4;font-size:9px;font-weight:800;letter-spacing:.12em}
+.profile-preferences h3{margin:5px 0 3px;color:#11203a;font-size:15px}
+.profile-preferences p{margin:0;color:#778393;font-size:10px}
+.profile-preferences label{display:grid;gap:7px;min-width:220px;color:#29384d;font-size:10px;font-weight:700}
+.profile-preferences select{height:42px;padding:0 12px;border:1px solid #d6dee8;border-radius:8px;background:#fff;color:#15243c}
+@media(max-width:700px){.profile-preferences{align-items:stretch;flex-direction:column}.profile-preferences label{min-width:0}}

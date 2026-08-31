@@ -752,6 +752,7 @@ function DataPage({
   onNotificationsChanged,
   onRequestsChanged,
   onBrandingChanged,
+  onLanguageChanged,
   onNavigate,
   selectedAnnouncementId,
 }: {
@@ -761,11 +762,13 @@ function DataPage({
   onNotificationsChanged?: () => void;
   onRequestsChanged?: () => void;
   onBrandingChanged?: (branding: Branding) => void;
+  onLanguageChanged?: (language: string) => void;
   onNavigate?: (page: string) => void;
   selectedAnnouncementId?: string;
 }) {
   const [rows, setRows] = useState<unknown>([]);
   const [loading, setLoading] = useState(true);
+  const [profileLanguage,setProfileLanguage]=useState(()=>localStorage.getItem("portal_language")??"English");
   const [showForm, setShowForm] = useState(false);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [pendingEmployee, setPendingEmployee] = useState<Record<
@@ -2582,6 +2585,20 @@ function DataPage({
               </div>
             ))}
           </div>
+          <div className="profile-preferences">
+            <div>
+              <small>LANGUAGE SETTING</small>
+              <h3>Portal language</h3>
+              <p>Choose the display language for your account.</p>
+            </div>
+            <label>
+              Language
+              <select value={profileLanguage} onChange={(event)=>{const next=event.target.value;setProfileLanguage(next);localStorage.setItem("portal_language",next);document.documentElement.lang=next==="Myanmar"?"my":"en";onLanguageChanged?.(next)}}>
+                <option value="English">English</option>
+                <option value="Myanmar">Myanmar</option>
+              </select>
+            </label>
+          </div>
         </section>
       </>
     );
@@ -3895,7 +3912,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
   const [branding, setBranding] = useState<Branding>({iconText:'CP',title:'Company Portal',subtitle:'People & Operations',iconColor:'#6d5ce7'});
-  const language = localStorage.getItem("portal_language") ?? "English";
+  const [language,setLanguage]=useState(()=>localStorage.getItem("portal_language")??"English");
   const menuLabels: Record<string, string> = {
     "Human Resource": "လူ့စွမ်းအားအရင်းအမြစ်",
     Overview: "ခြုံငုံကြည့်ရှုမှု",
@@ -4595,6 +4612,7 @@ function App() {
               onNotificationsChanged={refreshNotificationCount}
               onRequestsChanged={refreshLiveIndicators}
               onBrandingChanged={setBranding}
+              onLanguageChanged={setLanguage}
               onNavigate={navigate}
               selectedAnnouncementId={announcementTargetId}
             />
