@@ -753,6 +753,7 @@ function DataPage({
   onRequestsChanged,
   onBrandingChanged,
   onLanguageChanged,
+  translateLabel,
   onNavigate,
   selectedAnnouncementId,
 }: {
@@ -763,12 +764,14 @@ function DataPage({
   onRequestsChanged?: () => void;
   onBrandingChanged?: (branding: Branding) => void;
   onLanguageChanged?: (language: string) => void;
+  translateLabel?: (key: string) => string;
   onNavigate?: (page: string) => void;
   selectedAnnouncementId?: string;
 }) {
   const [rows, setRows] = useState<unknown>([]);
   const [loading, setLoading] = useState(true);
   const [profileLanguage,setProfileLanguage]=useState(()=>localStorage.getItem("portal_language")??"English");
+  const t=(key:string)=>translateLabel?.(key)??key;
   const [showForm, setShowForm] = useState(false);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [pendingEmployee, setPendingEmployee] = useState<Record<
@@ -1940,7 +1943,7 @@ function DataPage({
     return (
       <div className="empty-page">
         <div>◇</div>
-        <h2>{page}</h2>
+        <h2>{t(page)}</h2>
         <p>This module is next in the implementation queue.</p>
       </div>
     );
@@ -1961,7 +1964,7 @@ function DataPage({
         <div className="page-title">
           <div>
             <p>FLEET MANAGEMENT</p>
-            <h1>{page}</h1>
+            <h1>{t(page)}</h1>
             <span>Add, edit and search company vehicle records.</span>
           </div>
           <div className="vehicle-page-actions">
@@ -2093,7 +2096,7 @@ function DataPage({
     const steps=(detail?.steps??[]).map(step=>String(request?.status)==='rejected'&&!step.action&&Number(step.step_order)>Number(request?.current_step)?{...step,action:'Process Terminated'}:step);
     const detailFields=corporateRequestDetailFields(request);
     return <>
-      <div className="page-title"><div><p>REQUEST HISTORY</p><h1>My Requests</h1><span>Track every request you have submitted and review its current approval status.</span></div></div>
+      <div className="page-title"><div><p>REQUEST HISTORY</p><h1>{t("My Requests")}</h1><span>Track every request you have submitted and review its current approval status.</span></div></div>
       <section className="data-card my-request-list"><table><thead><tr><th>Request ID</th><th>Submission Date</th><th>Type</th><th>Description</th><th>Status</th></tr></thead><tbody>{listRows.map((row,index)=><tr key={String(row.id??index)} className={String(request?.id)===String(row.id)?'selected':''} onClick={()=>selectMyRequest(row)}><td><b>{corporateRequestId(row)}</b></td><td>{new Date(String(row.created_at)).toLocaleDateString()}</td><td>{requestFormName(row.request_type)}</td><td>{String(row.description??row.title??'—')}</td><td><span className={`pill ${String(row.status)}`}>{String(row.status)==="pending"&&row.pending_with?`Pending with ${String(row.pending_with)}`:String(row.status)}</span></td></tr>)}</tbody></table>{!loading&&!listRows.length&&<div className="loading">You have not submitted any requests yet.</div>}</section>
       {request&&<section className="my-request-detail"><header><div><p>{requestFormName(request.request_type).toUpperCase()} DETAILS</p><h2>{corporateRequestId(request)}</h2></div><button onClick={()=>setSelectedCorporateRequest(null)}>×</button></header><div className="my-request-summary">{detailFields.filter(field=>field.className!=="assigned-vehicle").map(field=><div key={field.label} className={field.className}><small>{field.label}</small><b>{field.value}</b></div>)}{detailFields.some(field=>field.className==="assigned-vehicle")&&<section className="assigned-vehicle-information"><h3>Assigned Vehicle Information</h3><div className="assigned-vehicle-grid">{detailFields.filter(field=>field.className==="assigned-vehicle").map(field=><div key={field.label}><small>{field.label}</small><b>{field.value}</b></div>)}</div></section>}</div>{steps.length>0&&<div className="my-request-status-cards">{steps.map(step=><article key={String(step.step_order)}><h3>{String(step.step_name)} Status</h3><strong className={step.action?String(step.action):Number(step.step_order)===Number(request.current_step)?'pending':'upcoming'}>{step.action?String(step.action):Number(step.step_order)===Number(request.current_step)?'Pending':'Waiting'}</strong><h4>{String(step.step_name)} Name</h4><p>{String(step.approver_name??'Not assigned')}</p>{step.acted_at&&<small>{new Date(String(step.acted_at)).toLocaleString()}</small>}{Boolean(step.comment)&&<div className="approval-step-comment"><small>Comment</small><p>{String(step.comment)}</p></div>}</article>)}</div>}{Boolean(detail.attachments?.length)&&<div className="my-request-files"><h3>Attachments</h3>{detail.attachments?.map(file=><button key={String(file.id)} onClick={()=>openCorporateAttachment(request.id,file)}>↗ {String(file.original_name)}</button>)}</div>}</section>}
     </>
@@ -2102,7 +2105,7 @@ function DataPage({
     const detail=selectedCorporateRequest as {request?:(Record<string,unknown>&{details?:never});steps?:(Record<string,unknown>&{acted_at?:string|null})[];attachments?:Record<string,unknown>[];canAct?:boolean} | null;
     const request=detail?.request;const steps=detail?.steps??[];const currentStep=Number(request?.current_step??1);const detailFields=corporateRequestDetailFields(request);const currentCorporateStep=steps.find(step=>Number(step.step_order)===currentStep);const advanceActionLabel=request?.request_type==='advance_clearance'&&String(currentCorporateStep?.step_name??'').toLowerCase().includes('cashier')?'Advance Cleared':request?.request_type==='advance_clearance'&&String(currentCorporateStep?.step_name??'').toLowerCase().includes('receiver')?'Advance Closed':'Approve';
     return <>
-      <div className="page-title"><div><p>CORPORATE APPROVAL</p><h1>{page}</h1><span>Select a request to view its details and approval journey.</span></div></div>
+      <div className="page-title"><div><p>CORPORATE APPROVAL</p><h1>{t(page)}</h1><span>Select a request to view its details and approval journey.</span></div></div>
       <div className={`corporate-approval-layout${detail?' detail-open':''}`}>
         <section className="data-card corporate-approval-list"><table><thead><tr><th>Reference</th><th>Employee</th><th>Request</th><th>Amount</th><th>Status</th></tr></thead><tbody>{listRows.map((row,index)=><tr key={String(row.id??index)} className={String(request?.id)===String(row.id)?'selected':''} onClick={()=>selectCorporateRequest(row.id)}><td><b>{corporateRequestId(row)}</b><small>{new Date(String(row.created_at)).toLocaleDateString()}</small></td><td>{String(row.employee_name)}</td><td>{String(row.purpose)}</td><td>{Number(row.amount).toLocaleString()} {String(row.currency)}</td><td><span className={`pill ${String(row.status)}`}>{String(row.status)}</span></td></tr>)}</tbody></table>{!loading&&!listRows.length&&<div className="loading">No payment requests assigned to you or submitted by you.</div>}</section>
         {detail&&request&&<aside className="corporate-request-detail">
@@ -2125,7 +2128,7 @@ function DataPage({
         <div className="page-title">
           <div>
             <p>CORPORATE WORKFLOW</p>
-            <h1>{page}</h1>
+            <h1>{t(page)}</h1>
             <span>Submit and track corporate finance requests</span>
           </div>
           <button className="primary" onClick={() => setShowForm(true)}>
@@ -2358,7 +2361,7 @@ function DataPage({
         <div className="page-title">
           <div>
             <p>GENERAL SETTING</p>
-            <h1>Role Access Control</h1>
+            <h1>{t("Role Access Control")}</h1>
             <span>Choose which navigation modules each role can access</span>
           </div>
         </div>
@@ -2415,7 +2418,7 @@ function DataPage({
         <div className="page-title">
           <div>
             <p>GENERAL SETTING / HR</p>
-            <h1>Item Master</h1>
+            <h1>{t("Item Master")}</h1>
             <span>Manage reusable values used in employee forms</span>
           </div>
         </div>
@@ -2494,7 +2497,7 @@ function DataPage({
         <div className="page-title">
           <div>
             <p>INBOX</p>
-            <h1>Notifications</h1>
+            <h1>{t("Notifications")}</h1>
             <span>
               {unread} unread notification{unread === 1 ? "" : "s"}
             </span>
@@ -2549,9 +2552,9 @@ function DataPage({
       <>
         <div className="page-title">
           <div>
-            <p>ACCOUNT</p>
-            <h1>My Profile</h1>
-            <span>Your employee and account information</span>
+            <p>{profileLanguage==="Myanmar"?"အကောင့်":"ACCOUNT"}</p>
+            <h1>{t("My Profile")}</h1>
+            <span>{profileLanguage==="Myanmar"?"သင့်ဝန်ထမ်းနှင့် အကောင့်အချက်အလက်များ":"Your employee and account information"}</span>
           </div>
         </div>
         <section className="web-profile">
@@ -2580,19 +2583,19 @@ function DataPage({
               ["Status", profile.employment_status],
             ].map(([label, value]) => (
               <div key={String(label)}>
-                <small>{String(label)}</small>
+                <small>{t(String(label))}</small>
                 <b>{String(value ?? "—")}</b>
               </div>
             ))}
           </div>
           <div className="profile-preferences">
             <div>
-              <small>LANGUAGE SETTING</small>
-              <h3>Portal language</h3>
-              <p>Choose the display language for your account.</p>
+              <small>{profileLanguage==="Myanmar"?"ဘာသာစကား ဆက်တင်":"LANGUAGE SETTING"}</small>
+              <h3>{profileLanguage==="Myanmar"?"Portal ဘာသာစကား":"Portal language"}</h3>
+              <p>{profileLanguage==="Myanmar"?"သင့်အကောင့်အတွက် ပြသမည့်ဘာသာစကားကို ရွေးချယ်ပါ။":"Choose the display language for your account."}</p>
             </div>
             <label>
-              Language
+              {t("Language")}
               <select value={profileLanguage} onChange={(event)=>{const next=event.target.value;setProfileLanguage(next);localStorage.setItem("portal_language",next);document.documentElement.lang=next==="Myanmar"?"my":"en";onLanguageChanged?.(next)}}>
                 <option value="English">English</option>
                 <option value="Myanmar">Myanmar</option>
@@ -2609,7 +2612,7 @@ function DataPage({
         <div className="page-title">
           <div>
             <p>EMPLOYEE WORKFLOW</p>
-            <h1>{page}</h1>
+            <h1>{t(page)}</h1>
             <span>Submitted requests and approval status</span>
           </div>
           <button className="primary" onClick={() => setShowForm(true)}>
@@ -2706,7 +2709,7 @@ function DataPage({
         <div className="page-title">
           <div>
             <p>COMMUNICATIONS</p>
-            <h1>Announcements</h1>
+            <h1>{t("Announcements")}</h1>
             <span>Company news with images, PDFs and documents</span>
           </div>
           {canManageAnnouncements && (
@@ -2875,7 +2878,7 @@ function DataPage({
         <div className="page-title">
           <div>
             <p>LIVE REPORTING</p>
-            <h1>Reports</h1>
+            <h1>{t("Reports")}</h1>
             <span>
               Current operational totals and downloadable Excel reports
             </span>
@@ -2940,7 +2943,7 @@ function DataPage({
         <div className="page-title users-management-title">
           <div>
             <p>ACCESS CONTROL</p>
-            <h1>Users & Roles</h1>
+            <h1>{t("Users & Roles")}</h1>
             <span>Manage system access and permissions</span>
           </div>
           <button type="button" className="primary create-role-button" onClick={() => setShowCreateRole(true)}>
@@ -3104,7 +3107,7 @@ function DataPage({
         <div className="page-title">
           <div>
             <p>CONFIGURATION</p>
-            <h1>System Settings</h1>
+            <h1>{t("System Settings")}</h1>
             <span>Company, language and attendance rules</span>
           </div>
         </div>
@@ -3196,7 +3199,7 @@ function DataPage({
       <div className="page-title">
         <div>
           <p>COMPANY PORTAL</p>
-          <h1>{page}</h1>
+          <h1>{t(page)}</h1>
           <span>Live records from PostgreSQL</span>
         </div>
         {page === "Employees" && (
@@ -3926,9 +3929,61 @@ function App() {
     "L&D Schedule": "သင်တန်း အစီအစဉ်",
     Announcements: "ကြေညာချက်များ",
     Notification: "အသိပေးချက်များ",
+    Notifications: "အသိပေးချက်များ",
     Reports: "အစီရင်ခံစာများ",
     "Users & Roles": "အသုံးပြုသူနှင့် ရာထူးများ",
     Corporate: "ကော်ပိုရိတ်",
+    "Payment Request Form": "ငွေပေးချေမှု တောင်းခံလွှာ",
+    "Advance Clearance Request Form": "ကြိုတင်ငွေ ရှင်းတမ်းလွှာ",
+    "Material Request Form": "ပစ္စည်း တောင်းခံလွှာ",
+    "Service Request Form": "ဝန်ဆောင်မှု တောင်းခံလွှာ",
+    "Stationary Request Form": "ရုံးသုံးပစ္စည်း တောင်းခံလွှာ",
+    "Vehicle Request Form": "ယာဉ် တောင်းခံလွှာ",
+    "Fleet Management": "ယာဉ်အုပ်စု စီမံခန့်ခွဲမှု",
+    "Vehicle Management (Internal)": "အတွင်းသုံးယာဉ် စီမံခန့်ခွဲမှု",
+    "Vehicle Management (Maintenance)": "ယာဉ်ပြုပြင်ထိန်းသိမ်းမှု",
+    "Ferry Management": "ဖယ်ရီယာဉ် စီမံခန့်ခွဲမှု",
+    "Information Technology": "သတင်းအချက်အလက်နည်းပညာ",
+    "IT Asset Management": "အိုင်တီပစ္စည်း စီမံခန့်ခွဲမှု",
+    "IT Asset Transfer Form": "အိုင်တီပစ္စည်း လွှဲပြောင်းလွှာ",
+    "IT Asset Write Out Form": "အိုင်တီပစ္စည်း စာရင်းပယ်လွှာ",
+    Admin: "စီမံခန့်ခွဲသူ",
+    "HR Management": "လူ့စွမ်းအားအရင်းအမြစ် အစီရင်ခံစာများ",
+    "Asset Management": "ပိုင်ဆိုင်ပစ္စည်း စီမံခန့်ခွဲမှု",
+    "Corporate Services": "ကော်ပိုရိတ် ဝန်ဆောင်မှုများ",
+    "Attendance Report": "တက်ရောက်မှု အစီရင်ခံစာ",
+    "Leave Report": "ခွင့် အစီရင်ခံစာ",
+    "Overtime Report": "အချိန်ပို အစီရင်ခံစာ",
+    "Appraisals Report": "အကဲဖြတ်မှု အစီရင်ခံစာ",
+    "Travelling Request Report": "ခရီးသွားတောင်းခံမှု အစီရင်ခံစာ",
+    "Admin Asset Report": "စီမံရေးပစ္စည်း အစီရင်ခံစာ",
+    "IT Asset Report": "အိုင်တီပစ္စည်း အစီရင်ခံစာ",
+    "Payment Request Report": "ငွေပေးချေမှု တောင်းခံမှုအစီရင်ခံစာ",
+    "Advance Clearance Report": "ကြိုတင်ငွေရှင်းတမ်း အစီရင်ခံစာ",
+    "Service Request Report": "ဝန်ဆောင်မှုတောင်းခံမှု အစီရင်ခံစာ",
+    "Material Request Report": "ပစ္စည်းတောင်းခံမှု အစီရင်ခံစာ",
+    "Stationary Request Report": "ရုံးသုံးပစ္စည်းတောင်းခံမှု အစီရင်ခံစာ",
+    "Vehicle Request Report": "ယာဉ်တောင်းခံမှု အစီရင်ခံစာ",
+    "Role Access Control": "ရာထူးအလိုက် အသုံးပြုခွင့်",
+    "Approval Setup": "အတည်ပြုသူ သတ်မှတ်ခြင်း",
+    "Users Management": "အသုံးပြုသူ စီမံခန့်ခွဲမှု",
+    "Item Master": "အခြေခံတန်ဖိုးများ",
+    Banner: "လမ်းညွှန်ဘား အမှတ်တံဆိပ်",
+    "My Requests": "ကျွန်ုပ်၏ တောင်းခံမှုများ",
+    "My Profile": "ကျွန်ုပ်၏ ကိုယ်ရေးအချက်အလက်",
+    "Change Password": "စကားဝှက်ပြောင်းရန်",
+    "System Settings": "စနစ်ဆက်တင်များ",
+    "Employee ID": "ဝန်ထမ်းအမှတ်",
+    Email: "အီးမေးလ်",
+    Department: "ဌာန",
+    Position: "ရာထူး",
+    "Work Location": "အလုပ်တည်နေရာ",
+    Manager: "အုပ်ချုပ်သူ",
+    Role: "အသုံးပြုသူအဆင့်",
+    Status: "အခြေအနေ",
+    Language: "ဘာသာစကား",
+    Workspace: "လုပ်ငန်းခွင်",
+    "Search anything...": "ရှာဖွေလိုသည်များ ရိုက်ထည့်ပါ...",
     "General Setting": "အထွေထွေဆက်တင်",
     Settings: "ဆက်တင်များ",
   };
@@ -4302,7 +4357,7 @@ function App() {
                         className={active === submenu ? "active" : ""}
                         onClick={() => navigate(submenu)}
                       >
-                        {submenu}
+                        {label(submenu)}
                       </button>
                     ))}
                   </div>
@@ -4315,7 +4370,7 @@ function App() {
                   onClick={() => setFleetOpen((open) => !open)}
                 >
                   <i><NavIcon name="Fleet Management" /></i>
-                  Fleet Management
+                  {label("Fleet Management")}
                   <span className={`chevron ${fleetOpen ? "open" : ""}`}><ChevronIcon /></span>
                 </button>
                 {fleetOpen && (
@@ -4326,7 +4381,7 @@ function App() {
                         className={active === submenu ? "active" : ""}
                         onClick={() => navigate(submenu)}
                       >
-                        {submenu}
+                        {label(submenu)}
                       </button>
                     ))}
                   </div>
@@ -4339,14 +4394,14 @@ function App() {
                   onClick={() => setInformationTechnologyOpen((open) => !open)}
                 >
                   <i><NavIcon name="Information Technology" /></i>
-                  Information Technology
+                  {label("Information Technology")}
                   <span className={`chevron ${informationTechnologyOpen ? "open" : ""}`}><ChevronIcon /></span>
                 </button>
                 {informationTechnologyOpen && (
                   <div className="sub-menu">
                     {informationTechnologySubmenus.filter(can).map((submenu) => (
                       <button key={submenu} className={active === submenu ? "active" : ""} onClick={() => navigate(submenu)}>
-                        {submenu}
+                        {label(submenu)}
                       </button>
                     ))}
                   </div>
@@ -4379,7 +4434,7 @@ function App() {
                             className={`report-category${groupActive ? " active" : ""}`}
                             onClick={() => setReportGroupOpen(groupOpen ? null : group.name)}
                           >
-                            <span>{group.name}</span>
+                            <span>{label(group.name)}</span>
                             <span className={`chevron ${groupOpen ? "open" : ""}`}><ChevronIcon /></span>
                           </button>
                           {groupOpen && (
@@ -4390,7 +4445,7 @@ function App() {
                                   className={active === report ? "active" : ""}
                                   onClick={() => navigate(report)}
                                 >
-                                  {report}
+                                  {label(report)}
                                 </button>
                               ))}
                             </div>
@@ -4427,7 +4482,7 @@ function App() {
                         className={active === "Users & Roles" ? "active" : ""}
                         onClick={() => navigate("Users & Roles")}
                       >
-                        Users & Roles
+                        {label("Users & Roles")}
                       </button>
                     )}
                     {can("Role Access Control") && (
@@ -4437,11 +4492,11 @@ function App() {
                         }
                         onClick={() => navigate("Role Access Control")}
                       >
-                        Role Access Control
+                        {label("Role Access Control")}
                       </button>
                     )}
                     {can("Approval Setup") && (
-                      <button className={active === "Approval Setup" ? "active" : ""} onClick={() => navigate("Approval Setup")}>Approval Setup</button>
+                      <button className={active === "Approval Setup" ? "active" : ""} onClick={() => navigate("Approval Setup")}>{label("Approval Setup")}</button>
                     )}
                   </div>
                 )}
@@ -4468,14 +4523,14 @@ function App() {
                         className={active === "Item Master" ? "active" : ""}
                         onClick={() => navigate("Item Master")}
                       >
-                        Item Master
+                        {label("Item Master")}
                       </button>
                     )}
                     {can("Banner") && (
-                      <button className={active === "Banner" ? "active" : ""} onClick={() => navigate("Banner")}>Banner</button>
+                      <button className={active === "Banner" ? "active" : ""} onClick={() => navigate("Banner")}>{label("Banner")}</button>
                     )}
                     {can("Settings") && (
-                      <button className={active === "Settings" ? "active" : ""} onClick={() => navigate("Settings")}>Settings</button>
+                      <button className={active === "Settings" ? "active" : ""} onClick={() => navigate("Settings")}>{label("Settings")}</button>
                     )}
                   </div>
                 )}
@@ -4502,7 +4557,7 @@ function App() {
         </nav>
         <div className="sidebar-bottom">
           {can("My Requests")&&<button className={active === "My Requests" ? "active" : ""} onClick={() => navigate("My Requests")}>
-            <i><NavIcon name="My Requests" /></i><span>My Requests</span>
+            <i><NavIcon name="My Requests" /></i><span>{label("My Requests")}</span>
           </button>}
           <div className="account-wrap">
             <div className="user">
@@ -4578,12 +4633,12 @@ function App() {
               ☰
             </button>
             <div className="crumb">
-              Workspace <span>/</span> {active}
+              {label("Workspace")} <span>/</span> {label(active)}
             </div>
           </div>
           <div className="head-actions">
             <button className="search">
-              ⌕ <span>Search anything...</span>
+              ⌕ <span>{label("Search anything...")}</span>
               <kbd>⌘ K</kbd>
             </button>
             {can("Notification") && (
@@ -4613,6 +4668,7 @@ function App() {
               onRequestsChanged={refreshLiveIndicators}
               onBrandingChanged={setBranding}
               onLanguageChanged={setLanguage}
+              translateLabel={label}
               onNavigate={navigate}
               selectedAnnouncementId={announcementTargetId}
             />
@@ -4621,9 +4677,9 @@ function App() {
               <div className="welcome">
                 <div>
                   <p>THURSDAY, JULY 2</p>
-                  <h1>Good morning, {currentName || "User"}</h1>
+                  <h1>{language==="Myanmar"?"မင်္ဂလာနံနက်ခင်းပါ":"Good morning,"} {currentName || (language==="Myanmar"?"အသုံးပြုသူ":"User")}</h1>
                   <span>
-                    Here’s what’s happening across your company today.
+                    {language==="Myanmar"?"ယနေ့ ကုမ္ပဏီအတွင်း ဖြစ်ပေါ်နေသည့် အခြေအနေများ။":"Here’s what’s happening across your company today."}
                   </span>
                 </div>
               </div>
@@ -4650,7 +4706,7 @@ function App() {
                 <section className="card attendance">
                   <div className="card-head">
                     <div>
-                      <h2>Today’s attendance</h2>
+                      <h2>{language==="Myanmar"?"ယနေ့ တက်ရောက်မှု":"Today’s attendance"}</h2>
                       <p>Live workforce status</p>
                     </div>
                     <button onClick={() => setActive("Attendance")}>
@@ -4812,7 +4868,7 @@ function App() {
               <section className="card team">
                 <div className="card-head">
                   <div>
-                    <h2>Department overview</h2>
+                    <h2>{language==="Myanmar"?"ဌာနအလိုက် ခြုံငုံကြည့်ရှုမှု":"Department overview"}</h2>
                     <p>Attendance across teams today</p>
                   </div>
                   <button onClick={() => setActive("Employees")}>
