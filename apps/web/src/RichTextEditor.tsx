@@ -5,13 +5,14 @@ const MAX_DESCRIPTION_LENGTH = 100000;
 
 export default function RichTextEditor({ name, initialValue = "", placeholder = "Describe this learning content…" }: { name: string; initialValue?: string; placeholder?: string }) {
   const editorRef = useRef<HTMLDivElement>(null);
-  const valueRef = useRef<HTMLInputElement>(null);
   const selectionRef = useRef<Range | null>(null);
+  const lastValidValueRef = useRef("");
   const [value, setValue] = useState("");
   const [count, setCount] = useState(0);
   const [error, setError] = useState("");
   useEffect(() => {
     const sanitized = sanitizeRichText(initialValue);
+    lastValidValueRef.current = sanitized;
     setValue(sanitized);
     if (editorRef.current) {
       editorRef.current.innerHTML = sanitized;
@@ -31,10 +32,16 @@ export default function RichTextEditor({ name, initialValue = "", placeholder = 
   const sync = () => {
     if (!editorRef.current) return;
     const nextCount = editorRef.current.innerText.length;
+    if (nextCount > MAX_DESCRIPTION_LENGTH) {
+      editorRef.current.innerHTML = lastValidValueRef.current;
+      setCount(editorRef.current.innerText.length);
+      setError("Description cannot exceed 100,000 characters.");
+      return;
+    }
     setCount(nextCount);
-    setError(nextCount > MAX_DESCRIPTION_LENGTH ? "Description cannot exceed 100,000 characters." : "");
-    valueRef.current?.setCustomValidity(nextCount > MAX_DESCRIPTION_LENGTH ? "Description cannot exceed 100,000 characters." : "");
-    setValue(editorRef.current.innerHTML);
+    setError("");
+    lastValidValueRef.current = editorRef.current.innerHTML;
+    setValue(lastValidValueRef.current);
   };
   const command = (commandName: string, commandValue?: string) => {
     restoreSelection();
@@ -49,10 +56,10 @@ export default function RichTextEditor({ name, initialValue = "", placeholder = 
       <button type="button" title="Italic" onMouseDown={event => { event.preventDefault(); command("italic"); }}><i>I</i></button>
       <button type="button" title="Underline" onMouseDown={event => { event.preventDefault(); command("underline"); }}><u>U</u></button>
       <select aria-label="Font size" defaultValue="3" onMouseDown={rememberSelection} onChange={event => command("fontSize", event.target.value)}><option value="2">Small</option><option value="3">Normal</option><option value="4">Large</option><option value="5">Extra large</option></select>
-      <label title="Font color"><span>A</span><input type="color" aria-label="Font color" defaultValue="#071b4f" onMouseDown={rememberSelection} onChange={event => command("foreColor", event.target.value)} /></label>
+      <div className="lms-color-control" title="Font color"><span>A</span><input type="color" aria-label="Font color" defaultValue="#071b4f" onMouseDown={rememberSelection} onChange={event => command("foreColor", event.target.value)} /></div>
     </div>
     <div ref={editorRef} className="lms-rich-input" contentEditable suppressContentEditableWarning data-placeholder={placeholder} onInput={sync} onMouseUp={rememberSelection} onKeyUp={rememberSelection} />
-    <input ref={valueRef} className="lms-rich-value" name={name} value={value} readOnly aria-label="Formatted description value" />
+    <input type="hidden" name={name} value={value} />
     <div className="lms-rich-meta"><small className={error ? "error" : ""}>{error}</small><span>{count.toLocaleString()}/100,000</span></div>
   </div>;
 }
