@@ -74,27 +74,24 @@ export default function RichTextEditor({ name, initialValue = "", placeholder = 
     sync();
     rememberSelection();
   };
-  const formatSelection = (tagName: "strong" | "em" | "u") => {
-    if (!restoreSelection()) return;
+  const formatSelection = (commandName: "bold" | "italic" | "underline") => {
     const selection = window.getSelection();
-    if (!selection?.rangeCount) return;
-    const range = selection.getRangeAt(0);
-    if (range.collapsed || !editorRef.current?.contains(range.commonAncestorContainer)) return;
-    const wrapper = document.createElement(tagName);
-    wrapper.append(range.extractContents());
-    range.insertNode(wrapper);
-    range.selectNodeContents(wrapper);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    selectionRef.current = range.cloneRange();
+    const liveRange = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    const hasLiveEditorSelection = Boolean(liveRange && !liveRange.collapsed && editorRef.current?.contains(liveRange.commonAncestorContainer));
+    if (!hasLiveEditorSelection && !restoreSelection()) return;
+    const activeSelection = window.getSelection();
+    const activeRange = activeSelection?.rangeCount ? activeSelection.getRangeAt(0) : null;
+    if (!activeRange || activeRange.collapsed || !editorRef.current?.contains(activeRange.commonAncestorContainer)) return;
+    document.execCommand(commandName, false);
     sync();
+    rememberSelection();
   };
 
   return <div className="lms-rich-editor">
     <div className="lms-rich-toolbar" role="toolbar" aria-label="Description formatting">
-      <button type="button" title="Bold" onMouseDown={event => { event.preventDefault(); formatSelection("strong"); }} onClick={event => event.preventDefault()}><b>B</b></button>
-      <button type="button" title="Italic" onMouseDown={event => { event.preventDefault(); formatSelection("em"); }} onClick={event => event.preventDefault()}><i>I</i></button>
-      <button type="button" title="Underline" onMouseDown={event => { event.preventDefault(); formatSelection("u"); }} onClick={event => event.preventDefault()}><u>U</u></button>
+      <button type="button" title="Bold" onPointerDown={event => { event.preventDefault(); formatSelection("bold"); }}><b>B</b></button>
+      <button type="button" title="Italic" onPointerDown={event => { event.preventDefault(); formatSelection("italic"); }}><i>I</i></button>
+      <button type="button" title="Underline" onPointerDown={event => { event.preventDefault(); formatSelection("underline"); }}><u>U</u></button>
       <select aria-label="Font size" defaultValue="3" onMouseDown={rememberSelection} onChange={event => command("fontSize", event.target.value)}><option value="2">10</option><option value="3">12</option><option value="4">14</option><option value="5">18</option><option value="6">24</option></select>
       <div className="lms-color-control" title="Font color"><span>A</span><input type="color" aria-label="Font color" defaultValue="#071b4f" onMouseDown={rememberSelection} onChange={event => command("foreColor", event.target.value)} /></div>
     </div>
