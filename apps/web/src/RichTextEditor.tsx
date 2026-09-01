@@ -58,7 +58,7 @@ export default function RichTextEditor({ name, initialValue = "", placeholder = 
       <select aria-label="Font size" defaultValue="3" onMouseDown={rememberSelection} onChange={event => command("fontSize", event.target.value)}><option value="2">Small</option><option value="3">Normal</option><option value="4">Large</option><option value="5">Extra large</option></select>
       <div className="lms-color-control" title="Font color"><span>A</span><input type="color" aria-label="Font color" defaultValue="#071b4f" onMouseDown={rememberSelection} onChange={event => command("foreColor", event.target.value)} /></div>
     </div>
-    <div ref={editorRef} className="lms-rich-input" contentEditable suppressContentEditableWarning data-placeholder={placeholder} onInput={sync} onMouseUp={rememberSelection} onKeyUp={rememberSelection} />
+    <div ref={editorRef} className="lms-rich-input" contentEditable suppressContentEditableWarning data-placeholder={placeholder} onClick={event => event.preventDefault()} onInput={sync} onMouseUp={rememberSelection} onKeyUp={rememberSelection} />
     <input type="hidden" name={name} value={value} />
     <div className="lms-rich-meta"><small className={error ? "error" : ""}>{error}</small><span>{count.toLocaleString()}/100,000</span></div>
   </div>;
