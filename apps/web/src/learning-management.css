@@ -41,6 +41,8 @@
 .lms-form-grid>label:not(.check)>input,.lms-form-grid>label:not(.check)>select{height:40px}
 .lms-form-grid>label>small{min-height:14px;color:#73818e;font-size:9px;font-weight:600;letter-spacing:.04em;line-height:1.45}
 
+.lms-badges .status.inactive{background:#ffe5e8;color:#b42338}.lms-badges .status.draft{background:#fff3c4;color:#8a6400}.lms-modal textarea[name="description"]{min-width:240px;max-width:100%;resize:both}.lms-description-counter{display:block;text-align:right;color:#71808c!important;font-variant-numeric:tabular-nums}
+
 /* Compact editor menu for HR/admin without crowding the page. */
 .lms-course-admin-bar>div{position:relative;display:flex;gap:7px}.lms-course-admin-bar .lms-edit-action{border-color:var(--theme-navy);background:var(--theme-navy);color:#fff}.lms-course-admin-bar .lms-edit-action:hover{background:var(--theme-navy-soft)}
 .lms-structure-editor{position:relative}.lms-structure-editor>summary{display:flex;align-items:center;gap:8px;height:29px;border:1px solid #cfdbe2;border-radius:7px;background:#fff;color:var(--theme-navy);padding:0 10px;font-size:10px;font-weight:800;cursor:pointer;list-style:none}.lms-structure-editor>summary::-webkit-details-marker{display:none}.lms-structure-editor>summary i{font-size:13px;font-style:normal;transition:transform .2s}.lms-structure-editor[open]>summary{border-color:var(--theme-lemon);background:#fff9dd}.lms-structure-editor[open]>summary i{transform:rotate(180deg)}
