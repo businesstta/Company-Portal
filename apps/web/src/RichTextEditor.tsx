@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { sanitizeRichText } from "./rich-text";
 
 const MAX_DESCRIPTION_LENGTH = 100000;
@@ -9,59 +9,72 @@ const cleanControlCharacters = (text: string) => [...text].filter(character => {
 
 export default function RichTextEditor({ name, initialValue = "", placeholder = "Describe this learning content…" }: { name: string; initialValue?: string; placeholder?: string }) {
   const editorRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const counterRef = useRef<HTMLSpanElement>(null);
+  const errorRef = useRef<HTMLElement>(null);
   const selectionRef = useRef<Range | null>(null);
   const lastValidValueRef = useRef("");
-  const [value, setValue] = useState("");
-  const [count, setCount] = useState(0);
-  const [error, setError] = useState("");
+
   useEffect(() => {
     const sanitized = sanitizeRichText(initialValue);
     lastValidValueRef.current = sanitized;
-    setValue(sanitized);
-    if (editorRef.current) {
-      editorRef.current.innerHTML = sanitized;
-      setCount(editorRef.current.innerText.length);
-    }
+    if (editorRef.current) editorRef.current.innerHTML = sanitized;
+    if (inputRef.current) inputRef.current.value = sanitized;
+    if (counterRef.current) counterRef.current.textContent = `${(editorRef.current?.innerText.length ?? 0).toLocaleString()}/100,000`;
   }, [initialValue]);
+
   const rememberSelection = () => {
     const selection = window.getSelection();
     if (selection?.rangeCount && editorRef.current?.contains(selection.anchorNode)) selectionRef.current = selection.getRangeAt(0).cloneRange();
   };
   const restoreSelection = () => {
     const selection = window.getSelection();
-    if (!selectionRef.current || !selection) return;
+    if (!selectionRef.current || !selection) return false;
     selection.removeAllRanges();
     selection.addRange(selectionRef.current);
+    return true;
+  };
+  const showError = (message = "") => {
+    if (!errorRef.current) return;
+    errorRef.current.textContent = message;
+    errorRef.current.classList.toggle("error", Boolean(message));
   };
   const sync = () => {
-    if (!editorRef.current) return;
+    if (!editorRef.current || !inputRef.current) return;
     const nextCount = editorRef.current.innerText.length;
     if (nextCount > MAX_DESCRIPTION_LENGTH) {
       editorRef.current.innerHTML = lastValidValueRef.current;
-      setCount(editorRef.current.innerText.length);
-      setError("Description cannot exceed 100,000 characters.");
-      return;
+      showError("Description cannot exceed 100,000 characters.");
+    } else {
+      showError();
+      lastValidValueRef.current = editorRef.current.innerHTML;
+      inputRef.current.value = lastValidValueRef.current;
     }
-    setCount(nextCount);
-    setError("");
-    lastValidValueRef.current = editorRef.current.innerHTML;
-    setValue(lastValidValueRef.current);
+    if (counterRef.current) counterRef.current.textContent = `${editorRef.current.innerText.length.toLocaleString()}/100,000`;
   };
   const pastePlainText = (event: React.ClipboardEvent<HTMLDivElement>) => {
     event.preventDefault();
     const text = cleanControlCharacters(event.clipboardData.getData("text/plain"));
-    restoreSelection();
-    document.execCommand("insertText", false, text);
+    const selection = window.getSelection();
+    if (!selection?.rangeCount) return;
+    const range = selection.getRangeAt(0);
+    range.deleteContents();
+    const textNode = document.createTextNode(text);
+    range.insertNode(textNode);
+    range.setStartAfter(textNode);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    selectionRef.current = range.cloneRange();
     sync();
-    rememberSelection();
   };
   const command = (commandName: string, commandValue?: string) => {
-    restoreSelection();
+    if (!restoreSelection()) editorRef.current?.focus();
     document.execCommand(commandName, false, commandValue);
-    editorRef.current?.focus();
     sync();
     rememberSelection();
   };
+
   return <div className="lms-rich-editor">
     <div className="lms-rich-toolbar" role="toolbar" aria-label="Description formatting">
       <button type="button" title="Bold" onMouseDown={event => { event.preventDefault(); command("bold"); }}><b>B</b></button>
@@ -71,7 +84,7 @@ export default function RichTextEditor({ name, initialValue = "", placeholder = 
       <div className="lms-color-control" title="Font color"><span>A</span><input type="color" aria-label="Font color" defaultValue="#071b4f" onMouseDown={rememberSelection} onChange={event => command("foreColor", event.target.value)} /></div>
     </div>
     <div ref={editorRef} className="lms-rich-input" contentEditable suppressContentEditableWarning data-placeholder={placeholder} onInput={sync} onPaste={pastePlainText} onMouseUp={rememberSelection} onKeyUp={rememberSelection} />
-    <input type="hidden" name={name} value={value} />
-    <div className="lms-rich-meta"><small className={error ? "error" : ""}>{error}</small><span>{count.toLocaleString()}/100,000</span></div>
+    <input ref={inputRef} type="hidden" name={name} defaultValue="" />
+    <div className="lms-rich-meta"><small ref={errorRef}></small><span ref={counterRef}>0/100,000</span></div>
   </div>;
 }
