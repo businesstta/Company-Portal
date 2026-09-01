@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { sanitizeRichText } from "./rich-text";
 
 const MAX_DESCRIPTION_LENGTH = 100000;
+const cleanControlCharacters = (text: string) => [...text].filter(character => {
+  const code = character.charCodeAt(0);
+  return code === 9 || code === 10 || code === 13 || (code >= 32 && code !== 127);
+}).join("");
 
 export default function RichTextEditor({ name, initialValue = "", placeholder = "Describe this learning content…" }: { name: string; initialValue?: string; placeholder?: string }) {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -43,6 +47,14 @@ export default function RichTextEditor({ name, initialValue = "", placeholder = 
     lastValidValueRef.current = editorRef.current.innerHTML;
     setValue(lastValidValueRef.current);
   };
+  const pastePlainText = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const text = cleanControlCharacters(event.clipboardData.getData("text/plain"));
+    restoreSelection();
+    document.execCommand("insertText", false, text);
+    sync();
+    rememberSelection();
+  };
   const command = (commandName: string, commandValue?: string) => {
     restoreSelection();
     document.execCommand(commandName, false, commandValue);
@@ -55,10 +67,10 @@ export default function RichTextEditor({ name, initialValue = "", placeholder = 
       <button type="button" title="Bold" onMouseDown={event => { event.preventDefault(); command("bold"); }}><b>B</b></button>
       <button type="button" title="Italic" onMouseDown={event => { event.preventDefault(); command("italic"); }}><i>I</i></button>
       <button type="button" title="Underline" onMouseDown={event => { event.preventDefault(); command("underline"); }}><u>U</u></button>
-      <select aria-label="Font size" defaultValue="3" onMouseDown={rememberSelection} onChange={event => command("fontSize", event.target.value)}><option value="2">Small</option><option value="3">Normal</option><option value="4">Large</option><option value="5">Extra large</option></select>
+      <select aria-label="Font size" defaultValue="3" onMouseDown={rememberSelection} onChange={event => command("fontSize", event.target.value)}><option value="2">10</option><option value="3">12</option><option value="4">14</option><option value="5">18</option><option value="6">24</option></select>
       <div className="lms-color-control" title="Font color"><span>A</span><input type="color" aria-label="Font color" defaultValue="#071b4f" onMouseDown={rememberSelection} onChange={event => command("foreColor", event.target.value)} /></div>
     </div>
-    <div ref={editorRef} className="lms-rich-input" contentEditable suppressContentEditableWarning data-placeholder={placeholder} onClick={event => event.preventDefault()} onInput={sync} onMouseUp={rememberSelection} onKeyUp={rememberSelection} />
+    <div ref={editorRef} className="lms-rich-input" contentEditable suppressContentEditableWarning data-placeholder={placeholder} onInput={sync} onPaste={pastePlainText} onMouseUp={rememberSelection} onKeyUp={rememberSelection} />
     <input type="hidden" name={name} value={value} />
     <div className="lms-rich-meta"><small className={error ? "error" : ""}>{error}</small><span>{count.toLocaleString()}/100,000</span></div>
   </div>;
