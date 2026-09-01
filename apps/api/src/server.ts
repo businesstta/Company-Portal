@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs'
 import cors from 'cors'
 import { randomUUID } from 'node:crypto'
 import { execFile } from 'node:child_process'
-import { mkdirSync, unlinkSync } from 'node:fs'
+import { existsSync, mkdirSync, unlinkSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { promisify } from 'node:util'
 import ExcelJS from 'exceljs'
@@ -27,6 +27,7 @@ const learningContentUpload=multer({storage:multer.diskStorage({destination:uplo
 const assetImageUpload=multer({storage:multer.diskStorage({destination:uploadDirectory,filename:(_req,file,cb)=>cb(null,`${randomUUID()}${extname(file.originalname).toLowerCase()}`)}),limits:{fileSize:5*1024*1024,files:1},fileFilter:(_req,file,cb)=>cb(null,/^image\/(jpeg|png|webp)$/.test(file.mimetype))})
 const certificateTemplateUpload=multer({storage:multer.diskStorage({destination:uploadDirectory,filename:(_req,file,cb)=>cb(null,`${randomUUID()}${extname(file.originalname).toLowerCase()}`)}),limits:{fileSize:10*1024*1024,files:1},fileFilter:(_req,file,cb)=>cb(null,['.pdf','.png','.jpg','.jpeg'].includes(extname(file.originalname).toLowerCase()))})
 const execFileAsync=promisify(execFile)
+const browserVideoPath=async(storedName:string)=>{const source=join(uploadDirectory,storedName),target=`${source}.browser.mp4`;if(existsSync(target))return target;await execFileAsync('ffmpeg',['-y','-i',source,'-map','0:v:0','-map','0:a?','-c:v','libx264','-preset','veryfast','-crf','23','-pix_fmt','yuv420p','-c:a','aac','-b:a','128k','-movflags','+faststart',target],{maxBuffer:10*1024*1024});return target}
 const certificatePython=process.env.PYTHON_EXECUTABLE??join(process.env.USERPROFILE??'','.cache','codex-runtimes','codex-primary-runtime','dependencies','python','python.exe')
 const initialEmployeePassword=()=>process.env.INITIAL_EMPLOYEE_PASSWORD||`${randomUUID()}${randomUUID()}`
 app.use(cors({ origin: process.env.WEB_ORIGIN?.split(',') ?? true }))
@@ -1192,7 +1193,7 @@ app.patch('/api/learning/contents/:id/file',auth,permit('Learning Management'),l
 }))
 
 app.get('/api/learning/contents/:id/file',auth,permit('Learning Management'),asyncRoute(async(req,res)=>{
-  const result=await db.query(`SELECT lc.* FROM learning_module_contents lc JOIN learning_modules m ON m.id=lc.module_id JOIN learning_courses c ON c.id=m.course_id JOIN employees e ON e.company_id=c.company_id WHERE lc.id=$1 AND e.id=$2 AND lc.content_type='file'`,[req.params.id,req.user!.employeeId]);if(!result.rowCount)return res.status(404).json({error:'Learning content not found'});const file=result.rows[0];res.type(file.mime_type||'application/octet-stream');res.setHeader('Content-Disposition',`inline; filename*=UTF-8''${encodeURIComponent(file.original_name)}`);res.sendFile(join(uploadDirectory,file.stored_name))
+  const result=await db.query(`SELECT lc.* FROM learning_module_contents lc JOIN learning_modules m ON m.id=lc.module_id JOIN learning_courses c ON c.id=m.course_id JOIN employees e ON e.company_id=c.company_id WHERE lc.id=$1 AND e.id=$2 AND lc.content_type='file'`,[req.params.id,req.user!.employeeId]);if(!result.rowCount)return res.status(404).json({error:'Learning content not found'});const file=result.rows[0];let filePath=join(uploadDirectory,file.stored_name),mimeType=file.mime_type||'application/octet-stream';if(String(file.mime_type??'').startsWith('video/')){filePath=await browserVideoPath(file.stored_name);mimeType='video/mp4'}res.type(mimeType);res.setHeader('Content-Disposition',`inline; filename*=UTF-8''${encodeURIComponent(file.original_name)}`);res.sendFile(filePath)
 }))
 
 app.delete('/api/learning/contents/:id',auth,permit('Learning Management'),asyncRoute(async(req,res)=>{
