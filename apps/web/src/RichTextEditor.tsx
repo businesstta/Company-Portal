@@ -77,13 +77,13 @@ export default function RichTextEditor({ name, initialValue = "", placeholder = 
 
   return <div className="lms-rich-editor">
     <div className="lms-rich-toolbar" role="toolbar" aria-label="Description formatting">
-      <button type="button" title="Bold" onMouseDown={event => { event.preventDefault(); command("bold"); }}><b>B</b></button>
-      <button type="button" title="Italic" onMouseDown={event => { event.preventDefault(); command("italic"); }}><i>I</i></button>
-      <button type="button" title="Underline" onMouseDown={event => { event.preventDefault(); command("underline"); }}><u>U</u></button>
+      <button type="button" title="Bold" onMouseDown={event => { event.preventDefault(); command("bold"); }} onClick={event => event.preventDefault()}><b>B</b></button>
+      <button type="button" title="Italic" onMouseDown={event => { event.preventDefault(); command("italic"); }} onClick={event => event.preventDefault()}><i>I</i></button>
+      <button type="button" title="Underline" onMouseDown={event => { event.preventDefault(); command("underline"); }} onClick={event => event.preventDefault()}><u>U</u></button>
       <select aria-label="Font size" defaultValue="3" onMouseDown={rememberSelection} onChange={event => command("fontSize", event.target.value)}><option value="2">10</option><option value="3">12</option><option value="4">14</option><option value="5">18</option><option value="6">24</option></select>
       <div className="lms-color-control" title="Font color"><span>A</span><input type="color" aria-label="Font color" defaultValue="#071b4f" onMouseDown={rememberSelection} onChange={event => command("foreColor", event.target.value)} /></div>
     </div>
-    <div ref={editorRef} className="lms-rich-input" contentEditable suppressContentEditableWarning data-placeholder={placeholder} onInput={sync} onPaste={pastePlainText} onMouseUp={rememberSelection} onKeyUp={rememberSelection} />
+    <div ref={editorRef} className="lms-rich-input" contentEditable suppressContentEditableWarning data-placeholder={placeholder} onClick={event => event.preventDefault()} onInput={sync} onPaste={pastePlainText} onMouseUp={rememberSelection} onKeyUp={rememberSelection} />
     <input ref={inputRef} type="hidden" name={name} defaultValue="" />
     <div className="lms-rich-meta"><small ref={errorRef}></small><span ref={counterRef}>0/100,000</span></div>
   </div>;
