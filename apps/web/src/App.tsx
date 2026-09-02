@@ -83,6 +83,31 @@ const reportGroups = [
   },
 ];
 const reportSubmenus = reportGroups.flatMap((group) => group.reports);
+const slugifyPage = (page: string) => page.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const pagePaths: Record<string, string> = {
+  Overview: "/overview",
+  Approvals: "/approvals",
+  Announcements: "/announcements",
+  Notification: "/notifications",
+  Admin: "/admin",
+  "Users & Roles": "/admin/users",
+  "Role Access Control": "/admin/role-access",
+  "Approval Setup": "/admin/approval-setup",
+  "General Setting": "/settings",
+  "Item Master": "/settings/item-master",
+  Banner: "/settings/branding",
+  Settings: "/settings/system",
+  "My Requests": "/my-requests",
+  "My Profile": "/profile",
+};
+for (const page of humanResourceSubmenus) pagePaths[page] = `/hr/${slugifyPage(page)}`;
+for (const page of corporateSubmenus) pagePaths[page] = `/corporate/${slugifyPage(page)}`;
+for (const page of fleetSubmenus) pagePaths[page] = `/fleet/${slugifyPage(page)}`;
+for (const page of informationTechnologySubmenus) pagePaths[page] = `/it/${slugifyPage(page)}`;
+for (const page of reportSubmenus) pagePaths[page] = `/reports/${slugifyPage(page)}`;
+const pagesByPath = Object.fromEntries(Object.entries(pagePaths).map(([page, path]) => [path, page]));
+const pageFromPath = (pathname: string) => pagesByPath[pathname.replace(/\/$/, "") || "/"] ?? "Overview";
+const pathForPage = (page: string) => pagePaths[page] ?? `/workspace/${slugifyPage(page)}`;
 const permissionMenuItems = [
   { key: "Overview", level: 0 },
   { key: "Approvals", level: 0 },
@@ -3893,7 +3918,7 @@ function App() {
   const [announcementSlide,setAnnouncementSlide]=useState(0);
   const [announcementTargetId,setAnnouncementTargetId]=useState("");
   const [loginError, setLoginError] = useState("");
-  const [active, setActive] = useState("Overview");
+  const [active, setActive] = useState(() => pageFromPath(window.location.pathname));
   const [notice, setNotice] = useState("");
   const [allowedMenus, setAllowedMenus] = useState<string[]>([]);
   const [currentRole, setCurrentRole] = useState("");
@@ -3989,6 +4014,17 @@ function App() {
   };
   const label = (key: string) =>
     language === "Myanmar" ? (menuLabels[key] ?? key) : key;
+
+  useEffect(() => {
+    const onPopState = () => setActive(pageFromPath(window.location.pathname));
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+  useEffect(() => {
+    document.title = active === "Overview" ? "AtoZ Group Portal" : `${active} | AtoZ Group Portal`;
+    const expectedPath = pathForPage(active);
+    if (window.location.pathname !== expectedPath) window.history.replaceState({ page: active }, "", expectedPath);
+  }, [active]);
 
   const act = (message: string) => {
     setNotice(message);
@@ -4257,10 +4293,13 @@ function App() {
   );
   const navigate = (page: string) => {
     if (page === "Approvals" && !hasApprovalAccess) {
+      window.history.pushState({ page: "My Requests" }, "", pathForPage("My Requests"));
       setActive("My Requests");
       setSidebarOpen(false);
       return;
     }
+    const nextPath = pathForPage(page);
+    if (window.location.pathname !== nextPath) window.history.pushState({ page }, "", nextPath);
     setActive(page);
     setSidebarOpen(false);
   };
@@ -4709,7 +4748,7 @@ function App() {
                       <h2>{language==="Myanmar"?"ယနေ့ တက်ရောက်မှု":"Today’s attendance"}</h2>
                       <p>Live workforce status</p>
                     </div>
-                    <button onClick={() => setActive("Attendance")}>
+                    <button onClick={() => navigate("Attendance")}>
                       View details →
                     </button>
                   </div>
@@ -4871,7 +4910,7 @@ function App() {
                     <h2>{language==="Myanmar"?"ဌာနအလိုက် ခြုံငုံကြည့်ရှုမှု":"Department overview"}</h2>
                     <p>Attendance across teams today</p>
                   </div>
-                  <button onClick={() => setActive("Employees")}>
+                  <button onClick={() => navigate("Employees")}>
                     All departments →
                   </button>
                 </div>
