@@ -4021,10 +4021,17 @@ function App() {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
   useEffect(() => {
+    if (!token) {
+      document.title = "Sign in | AtoZ Group Portal";
+      if (window.location.pathname !== "/login") {
+        window.history.replaceState({ page: "Login" }, "", "/login");
+      }
+      return;
+    }
     document.title = active === "Overview" ? "AtoZ Group Portal" : `${active} | AtoZ Group Portal`;
     const expectedPath = pathForPage(active);
     if (window.location.pathname !== expectedPath) window.history.replaceState({ page: active }, "", expectedPath);
-  }, [active]);
+  }, [active, token]);
 
   const act = (message: string) => {
     setNotice(message);
@@ -4159,6 +4166,7 @@ function App() {
   };
   const logout = () => {
     localStorage.removeItem("portal_token");
+    window.history.replaceState({ page: "Login" }, "", "/login");
     setToken("");
     setAccountOpen(false);
     setDashboard(null);
