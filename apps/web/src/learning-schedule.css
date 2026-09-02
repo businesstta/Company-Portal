@@ -10,3 +10,5 @@
   z-index:auto;
   height:auto;
 }
+
+.schedule-agenda article button.cancelled{background:#fff1f2}.schedule-agenda article button.cancelled>i{background:#c92f3e}.schedule-agenda article button.cancelled b{color:#9f2633;text-decoration:line-through}.schedule-agenda article button.cancelled em{background:#ffdce0;color:#a62532}
