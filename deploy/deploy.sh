@@ -19,6 +19,10 @@ set +a
 
 compose_project="${COMPOSE_PROJECT_NAME:?Set COMPOSE_PROJECT_NAME in .env}"
 web_port="${WEB_PORT:?Set WEB_PORT in .env}"
+health_host="${WEB_BIND_ADDRESS:-127.0.0.1}"
+if [[ "$health_host" == "0.0.0.0" ]]; then
+  health_host="127.0.0.1"
+fi
 compose=(docker compose --project-name "$compose_project" --env-file .env)
 backup_dir="$repository_dir/backups"
 previous_revision="$(git rev-parse HEAD)"
@@ -50,7 +54,7 @@ echo "Building $compose_project"
 echo "Waiting for application health"
 healthy=0
 for _ in $(seq 1 30); do
-  if curl --fail --silent --show-error "http://127.0.0.1:$web_port/health" >/dev/null; then
+  if curl --fail --silent --show-error "http://$health_host:$web_port/health" >/dev/null; then
     healthy=1
     break
   fi
