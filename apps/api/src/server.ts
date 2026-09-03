@@ -878,7 +878,7 @@ app.get('/api/reports/summary', auth, asyncRoute(async (_req,res) => {
 app.get('/api/reports/learning-detail',auth,permit('Reports'),asyncRoute(async(req,res)=>{
   const company=(await db.query('SELECT company_id FROM employees WHERE id=$1',[req.user!.employeeId])).rows[0]
   if(!company)return res.status(404).json({error:'Employee company was not found'})
-  const result=await db.query(`SELECT e.id employee_id,e.employee_no,trim(e.first_name||' '||e.last_name) employee_name,d.name department,e.position,
+  const result=await db.query(`SELECT e.id employee_id,e.employee_no,trim(e.first_name||' '||e.last_name) employee_name,d.name department,e.organization,e.project_location,e.position,
     c.course_code,c.title course_title,c.status course_status,COALESCE(content.total_contents,0)::int total_contents,
     COALESCE(progress.completed_contents,0)::int completed_contents,
     CASE WHEN COALESCE(content.total_contents,0)=0 THEN 0 ELSE round(COALESCE(progress.completed_contents,0)::numeric/content.total_contents*100)::int END progress_percentage,
