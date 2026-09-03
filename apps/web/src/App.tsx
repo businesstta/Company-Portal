@@ -15,6 +15,7 @@ import FerryManagement from "./FerryManagement";
 import ITAssetManagement from "./ITAssetManagement";
 import LearningManagement from "./LearningManagement";
 import LearningSchedule from "./LearningSchedule";
+import LearningDetailReport from "./LearningDetailReport";
 import "./select-design.css";
 import "./theme.css";
 
@@ -64,6 +65,7 @@ const reportGroups = [
       "Overtime Report",
       "Appraisals Report",
       "Travelling Request Report",
+      "L&D Detail Report",
     ],
   },
   {
@@ -1964,6 +1966,7 @@ function DataPage({
   if (page === "IT Asset Management") return <ITAssetManagement token={token} onNavigate={onNavigate} />;
   if (page === "Learning Management") return <LearningManagement token={token} role={role} />;
   if (page === "L&D Schedule") return <LearningSchedule token={token} role={role} />;
+  if (page === "L&D Detail Report") return <LearningDetailReport token={token} />;
   if (!endpoint)
     return (
       <div className="empty-page">
@@ -3981,6 +3984,7 @@ function App() {
     "Overtime Report": "အချိန်ပို အစီရင်ခံစာ",
     "Appraisals Report": "အကဲဖြတ်မှု အစီရင်ခံစာ",
     "Travelling Request Report": "ခရီးသွားတောင်းခံမှု အစီရင်ခံစာ",
+    "L&D Detail Report": "သင်ယူရေး အသေးစိတ်အစီရင်ခံစာ",
     "Admin Asset Report": "စီမံရေးပစ္စည်း အစီရင်ခံစာ",
     "IT Asset Report": "အိုင်တီပစ္စည်း အစီရင်ခံစာ",
     "Payment Request Report": "ငွေပေးချေမှု တောင်းခံမှုအစီရင်ခံစာ",
@@ -4278,6 +4282,8 @@ function App() {
   ];
   const can = (menu: string) =>
     allowedMenus.includes("*") || allowedMenus.includes(menu);
+  const canViewReport = (report: string, group?: string) =>
+    can(report) || (report === "L&D Detail Report" && group === "HR Management" && (can("Reports") || can("HR Management")));
   const hasApprovalAccess =
     currentRole === "employee" ? isWorkflowApprover : can("Approvals");
   const visibleNav = nav.filter((item) =>
@@ -4292,7 +4298,7 @@ function App() {
       : item === "Corporate"
       ? can(item) || corporateSubmenus.some(can)
       : item === "Reports"
-        ? can(item) || reportGroups.some((group)=>can(group.name)||group.reports.some(can))
+        ? can(item) || reportGroups.some((group)=>can(group.name)||group.reports.some((report)=>canViewReport(report,group.name)))
       : item === "Users & Roles"
         ? can(item) || can("Role Access Control") || can("Approval Setup")
       : item === "General Setting"
@@ -4472,7 +4478,7 @@ function App() {
                 </button>
                 {reportsOpen && (
                   <div className="sub-menu report-category-menu">
-                    {reportGroups.filter((group)=>can(group.name)||group.reports.some(can)).map((group) => {
+                    {reportGroups.filter((group)=>can(group.name)||group.reports.some((report)=>canViewReport(report,group.name))).map((group) => {
                       const groupOpen = reportGroupOpen === group.name;
                       const groupActive = group.reports.includes(active);
                       return (
@@ -4486,7 +4492,7 @@ function App() {
                           </button>
                           {groupOpen && (
                             <div className="report-leaf-menu">
-                              {group.reports.filter(can).map((report) => (
+                              {group.reports.filter((report)=>canViewReport(report,group.name)).map((report) => (
                                 <button
                                   key={report}
                                   className={active === report ? "active" : ""}
