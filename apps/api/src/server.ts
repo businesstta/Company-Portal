@@ -882,8 +882,8 @@ app.get('/api/reports/learning-detail',auth,permit('Reports'),asyncRoute(async(r
     c.course_code,c.title course_title,c.status course_status,COALESCE(content.total_contents,0)::int total_contents,
     COALESCE(progress.completed_contents,0)::int completed_contents,
     CASE WHEN COALESCE(content.total_contents,0)=0 THEN 0 ELSE round(COALESCE(progress.completed_contents,0)::numeric/content.total_contents*100)::int END progress_percentage,
-    COALESCE(assessment.final_attempts,0)::int final_attempts,assessment.best_score,
-    CASE WHEN cert.id IS NOT NULL OR (COALESCE(content.total_contents,0)>0 AND COALESCE(progress.completed_contents,0)>=content.total_contents) THEN 'completed'
+    COALESCE(assessment.final_attempts,0)::int final_attempts,assessment.best_score,(cert.id IS NOT NULL) certificate_earned,
+    CASE WHEN cert.id IS NOT NULL THEN 'completed'
       WHEN COALESCE(progress.completed_contents,0)>0 OR COALESCE(assessment.final_attempts,0)>0 THEN 'in_progress' ELSE 'not_started' END learning_status
     FROM employees e LEFT JOIN departments d ON d.id=e.department_id
     JOIN learning_courses c ON c.company_id=e.company_id AND c.status<>'archived' AND (
