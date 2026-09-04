@@ -43,7 +43,7 @@ function ContentViewerItem({content,token,canManage,onOpenFile,onEdit,onRemove}:
 export default function LearningManagement({token,role}:{token:string;role:string}){
   const [courses,setCourses]=useState<Course[]>([]),[levels,setLevels]=useState<Level[]>([]),[employees,setEmployees]=useState<EmployeeChoice[]>([]),[catalogStatuses,setCatalogStatuses]=useState<Record<string,CatalogStatus>>({}),[selectedId,setSelectedId]=useState("");
   const [showCourse,setShowCourse]=useState(false),[showModule,setShowModule]=useState(false),[showQuestion,setShowQuestion]=useState(false),[manageQuestions,setManageQuestions]=useState<Question[]>([]),[editingQuestion,setEditingQuestion]=useState<Question|null>(null),[editingCourse,setEditingCourse]=useState<Course|null>(null),[editingModule,setEditingModule]=useState<Module|null>(null),[editingContent,setEditingContent]=useState<Content|null>(null),[viewerModule,setViewerModule]=useState<Module|null>(null),[contentModule,setContentModule]=useState<Module|null>(null),[contentType,setContentType]=useState<"youtube"|"file"|"document">("youtube"),[openDocument,setOpenDocument]=useState<Content|null>(null),[courseAudience,setCourseAudience]=useState<string[]>(["all_employees"]),[employeeSearch,setEmployeeSearch]=useState(""),[courseEmployeeIds,setCourseEmployeeIds]=useState<string[]>([]),[courseRankIds,setCourseRankIds]=useState<string[]>([]),[certificateType,setCertificateType]=useState<"system"|"custom">("system"),[certificateTitle,setCertificateTitle]=useState("Certificate of Completion"),[certificateTemplate,setCertificateTemplate]=useState<File|null>(null),[uploadProgress,setUploadProgress]=useState<number|null>(null),[uploadSuccess,setUploadSuccess]=useState(""),[progress,setProgress]=useState<Progress|null>(null),[assessment,setAssessment]=useState<{questions:Question[];assessmentType:"pre_test"|"final";attemptNo:number;attemptsRemaining:number}|null>(null),[answers,setAnswers]=useState<Record<string,string[]>>({}),[result,setResult]=useState<{assessmentType:"pre_test"|"final";score:number;passed:boolean;attemptsRemaining:number;retryAvailableAt?:string|null;certificate?:Progress["certificate"]}|null>(null),[pendingRemoval,setPendingRemoval]=useState<{kind:"course"|"module"|"content";id:string;label:string}|null>(null),[removing,setRemoving]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState("");
-  const [selectedDepartmentId,setSelectedDepartmentId]=useState<string|null>(null);
+  const [selectedDepartmentIds,setSelectedDepartmentIds]=useState<string[]>([]);
   const canManage=role==="admin"||role==="hr";
   const departments=useMemo(()=>Array.from(new Map(employees.filter(employee=>employee.department_id&&employee.department).map(employee=>[employee.department_id!,{id:employee.department_id!,name:employee.department!}])).values()).sort((a,b)=>a.name.localeCompare(b.name)),[employees]);
   const selected=useMemo(()=>courses.find(course=>course.id===selectedId)??courses[0],[courses,selectedId]);
@@ -53,7 +53,7 @@ export default function LearningManagement({token,role}:{token:string;role:strin
   useEffect(()=>{void load()},[load]);
   useEffect(()=>{if(contentModule)setViewerModule(null)},[contentModule]);
   useEffect(()=>{if(editingContent)setViewerModule(null)},[editingContent]);
-  useEffect(()=>{setSelectedDepartmentId(null)},[showCourse,editingCourse?.id]);
+  useEffect(()=>{setSelectedDepartmentIds([])},[showCourse,editingCourse?.id]);
   useEffect(()=>{if(!showCourse)return;const total=document.querySelector<HTMLInputElement>('.lms-course-form input[name="durationMinutes"]'),fields=document.querySelectorAll<HTMLInputElement>(".lms-course-form .lms-duration-fields input");if(total)total.value="";fields.forEach(field=>{field.value=""})},[showCourse]);
   useEffect(()=>{if(!showModule&&!editingModule)return;document.querySelectorAll<HTMLLabelElement>(".lms-modal .lms-form-grid>label").forEach(item=>{if(item.textContent?.startsWith("Maximum Attempts"))item.remove()})},[showModule,editingModule]);
   useEffect(()=>{if(!canManage||!selected)return;const cards=Array.from(document.querySelectorAll<HTMLElement>(".lms-modules>article"));const buttons=cards.map((card,index)=>{const module=selected.modules[index],actions=card.querySelector<HTMLElement>(".lms-module-actions");if(!module||!actions||actions.querySelector(".lms-edit-module-inline"))return null;const button=document.createElement("button");button.type="button";button.className="lms-edit-module-inline";button.textContent="Edit Module";button.addEventListener("click",event=>{event.stopPropagation();setEditingModule(module)});actions.insertBefore(button,actions.querySelector("button:not(.lms-mark-module)"));return button});return()=>buttons.forEach(button=>button?.remove())},[canManage,selected,courses]);
@@ -79,7 +79,7 @@ export default function LearningManagement({token,role}:{token:string;role:strin
     departmentOption.className="lms-department-audience";
     departmentToggle.type="radio";
     departmentToggle.name="courseAudienceType";
-    departmentToggle.checked=selectedDepartmentId!==null;
+    departmentToggle.checked=selectedDepartmentIds.length>0;
     departmentCaption.textContent="Department";
     departmentOption.append(departmentToggle,departmentCaption);
     types.append(departmentOption);
@@ -89,48 +89,50 @@ export default function LearningManagement({token,role}:{token:string;role:strin
     picker.className="lms-rank-picker lms-department-picker";
     title.textContent="Select Department";
     picker.append(title,options);
-    picker.hidden=selectedDepartmentId===null;
+    picker.hidden=selectedDepartmentIds.length===0;
     departments.forEach(department=>{
       const option=document.createElement("label");
-      const radio=document.createElement("input");
+      const checkbox=document.createElement("input");
       const text=document.createElement("span");
-      radio.type="radio";
-      radio.name="courseDepartment";
-      radio.checked=selectedDepartmentId===department.id;
+      checkbox.type="checkbox";
+      checkbox.name="courseDepartments";
+      checkbox.checked=selectedDepartmentIds.includes(department.id);
       text.textContent=department.name;
-      radio.addEventListener("change",()=>{
-        if(!radio.checked)return;
-        setSelectedDepartmentId(department.id);
+      checkbox.addEventListener("change",()=>{
+        const nextDepartmentIds=checkbox.checked
+          ?Array.from(new Set([...selectedDepartmentIds,department.id]))
+          :selectedDepartmentIds.filter(id=>id!==department.id);
+        setSelectedDepartmentIds(nextDepartmentIds);
         setCourseAudience(["specific_employees"]);
         setCourseRankIds([]);
-        setCourseEmployeeIds(employees.filter(employee=>employee.department_id===department.id).map(employee=>employee.id));
+        setCourseEmployeeIds(employees.filter(employee=>employee.department_id&&nextDepartmentIds.includes(employee.department_id)).map(employee=>employee.id));
       });
-      option.append(radio,text);
+      option.append(checkbox,text);
       options.append(option);
     });
     departmentToggle.addEventListener("change",()=>{
       if(departmentToggle.checked){
-        setSelectedDepartmentId(current=>current??departments[0]?.id??null);
-        const departmentId=selectedDepartmentId??departments[0]?.id;
+        const departmentIds=selectedDepartmentIds.length?selectedDepartmentIds:departments[0]?.id?[departments[0].id]:[];
+        setSelectedDepartmentIds(departmentIds);
         setCourseAudience(["specific_employees"]);
         setCourseRankIds([]);
-        setCourseEmployeeIds(departmentId?employees.filter(employee=>employee.department_id===departmentId).map(employee=>employee.id):[]);
+        setCourseEmployeeIds(employees.filter(employee=>employee.department_id&&departmentIds.includes(employee.department_id)).map(employee=>employee.id));
       }else{
-        setSelectedDepartmentId(null);
+        setSelectedDepartmentIds([]);
         setCourseAudience(["all_employees"]);
         setCourseEmployeeIds([]);
       }
     });
     builder.append(picker);
     const specificOption=Array.from(types.querySelectorAll<HTMLLabelElement>("label")).find(item=>item.textContent?.trim()==="Specific Employees");
-    const specificInput=specificOption?.querySelector<HTMLInputElement>('input[type="checkbox"]');
-    if(selectedDepartmentId){
+    const specificInput=specificOption?.querySelector<HTMLInputElement>('input');
+    if(selectedDepartmentIds.length){
       if(specificInput)specificInput.checked=false;
       const employeePicker=builder.querySelector<HTMLElement>(".lms-employee-picker");
       if(employeePicker)employeePicker.hidden=true;
     }
     return()=>{departmentOption.remove();picker.remove()};
-  },[showCourse,editingCourse,departments,employees,selectedDepartmentId]);
+  },[showCourse,editingCourse,departments,employees,selectedDepartmentIds]);
   useEffect(()=>{
     const renderedDescriptions=Array.from(document.querySelectorAll<HTMLElement>(".lms-modules>article")).map((card,index)=>{
       const module=selected?.modules[index],info=card.querySelector<HTMLElement>(".lms-module-info");
@@ -156,7 +158,7 @@ export default function LearningManagement({token,role}:{token:string;role:strin
   useEffect(()=>{document.querySelectorAll<HTMLElement>(".lms-content-caption p,.lms-viewer-caption p").forEach(item=>{const source=item.dataset.richSource??item.textContent??"";if(item.dataset.richSource===source)return;item.dataset.richSource=source;item.innerHTML=sanitizeRichText(source);item.classList.add("lms-rich-description")})},[courses,viewerModule]);
   useEffect(()=>{if(assessment){const heading=document.querySelector<HTMLElement>(".lms-assessment header small"),note=document.querySelector<HTMLElement>(".lms-assessment footer>span");if(heading)heading.textContent=assessment.assessmentType==="pre_test"?"PRE TEST · ONE ATTEMPT ONLY":`FINAL ASSESSMENT · ATTEMPT ${assessment.attemptNo}`;if(note)note.textContent=assessment.assessmentType==="pre_test"?"This Pre Test can only be taken once.":`Passing score: 80% · ${assessment.attemptsRemaining} attempt(s) available`}},[assessment]);
   const submitCourse=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const form=new FormData(event.currentTarget);try{const durationMinutes=Number(form.get("durationMinutes")||0);if(durationMinutes>12*60+59)throw new Error("Course duration hours cannot be more than 12.");if(certificateType==="custom"&&!certificateTemplate)throw new Error("Select a PDF, PNG or JPG certificate template");const created=await request("/learning/courses",{method:"POST",body:JSON.stringify({courseCode:form.get("courseCode"),title:form.get("title"),description:form.get("description"),category:form.get("category"),deliveryMethod:form.get("deliveryMethod"),durationMinutes,isMandatory:form.get("isMandatory")==="on",status:form.get("status"),certificateTitle,audienceTypes:courseAudience,employeeIds:courseEmployeeIds,rankIds:courseRankIds})});if(certificateType==="custom"&&certificateTemplate){const templateData=new FormData();templateData.append("template",certificateTemplate);templateData.append("certificateTitle",certificateTitle);const uploadResponse=await fetch(`${API}/learning/courses/${created.id}/certificate-template`,{method:"POST",headers:{Authorization:`Bearer ${token}`},body:templateData});const uploadBody=await uploadResponse.json().catch(()=>({}));if(!uploadResponse.ok)throw new Error(uploadBody.error??"Unable to upload certificate template")}setShowCourse(false);setCourseAudience(["all_employees"]);setCourseEmployeeIds([]);setCourseRankIds([]);setEmployeeSearch("");setCertificateType("system");setCertificateTitle("Certificate of Completion");setCertificateTemplate(null);await load()}catch(reason){setError(reason instanceof Error?reason.message:"Unable to create course")}};
-  const toggleAudience=(type:string)=>{setSelectedDepartmentId(null);setCourseAudience([type]);if(type!=="specific_employees")setCourseEmployeeIds([]);if(type!=="rank")setCourseRankIds([])};
+  const toggleAudience=(type:string)=>{setSelectedDepartmentIds([]);setCourseAudience([type]);if(type!=="specific_employees")setCourseEmployeeIds([]);if(type!=="rank")setCourseRankIds([])};
   const filteredEmployees=employees.filter(employee=>`${employee.employee_name} ${employee.employee_no} ${employee.email} ${employee.position??""}`.toLowerCase().includes(employeeSearch.toLowerCase()));
   const submitModule=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();if(!selected)return;const form=new FormData(event.currentTarget);try{await request(`/learning/courses/${selected.id}/modules`,{method:"POST",body:JSON.stringify({title:form.get("title"),description:form.get("description"),sequenceNo:Number(form.get("sequenceNo")),audienceType:"all",targetLevelIds:[],durationMinutes:Number(form.get("durationMinutes")),passingScore:null,maxAttempts:3,isMandatory:form.get("isMandatory")==="on"})});setShowModule(false);await load()}catch(reason){setError(reason instanceof Error?reason.message:"Unable to create module")}};
   const removeModule=(id:string)=>setPendingRemoval({kind:"module",id,label:"this module"});
