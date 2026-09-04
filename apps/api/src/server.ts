@@ -1272,7 +1272,7 @@ app.get('/api/learning/certificates/:id/download',auth,permit('Learning Manageme
 }))
 
 app.use((error: unknown,req: Request,res: Response,_next: NextFunction) => {
-  if(error instanceof multer.MulterError)return res.status(error.code==='LIMIT_FILE_SIZE'?413:400).json({error:error.code==='LIMIT_FILE_SIZE'?'Uploaded file is too large. Maximum learning-content file size is 100 MB.':'Unable to process the uploaded file.'})
+  if(error instanceof multer.MulterError)return res.status(error.code==='LIMIT_FILE_SIZE'?413:400).json({error:error.code==='LIMIT_FILE_SIZE'?'Uploaded file is too large. Maximum learning-content file size is 1 GB.':'Unable to process the uploaded file.'})
   if(error instanceof z.ZodError){const descriptionIssue=error.issues.find(issue=>issue.path.includes('description'));return res.status(400).json({error:descriptionIssue?'Description cannot exceed 100,000 characters.':error.issues[0]?.message??'Invalid request',details:error.issues})}
   if(typeof error==='object'&&error!==null&&'code' in error&&(error as {code?:string}).code==='23514'&&'constraint' in error&&(error as {constraint?:string}).constraint==='learning_module_contents_description_length_check')return res.status(400).json({error:'Description cannot exceed 100,000 characters.'})
   if(typeof error==='object'&&error!==null&&'code' in error&&['22021','22P05'].includes(String((error as {code?:string}).code)))return res.status(400).json({error:'Description contains unsupported characters. Paste the text again and retry.'})
