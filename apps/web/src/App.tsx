@@ -867,6 +867,10 @@ function DataPage({
   const [employeeNotice, setEmployeeNotice] = useState("");
   const [resetUser, setResetUser] = useState<Record<string, unknown> | null>(null);
   const [resetMessage, setResetMessage] = useState("");
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [bulkUserRole, setBulkUserRole] = useState("");
+  const [showBulkPasswordReset, setShowBulkPasswordReset] = useState(false);
+  const [bulkUserWorking, setBulkUserWorking] = useState(false);
   const [roleSaveNotice, setRoleSaveNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [userFilters, setUserFilters] = useState<UserFilters>({
     employeeNo: "", name: "", position: "", department: [],
@@ -1031,6 +1035,8 @@ function DataPage({
   const pagedUserRows = page === "Users & Roles"
     ? filteredUserRows.slice((currentUserPage - 1) * userPageSize, currentUserPage * userPageSize)
     : filteredUserRows;
+  const pagedUserIds=page==="Users & Roles"?pagedUserRows.map(row=>String(row.id)).filter(Boolean):[];
+  const allPagedUsersSelected=pagedUserIds.length>0&&pagedUserIds.every(id=>selectedUserIds.includes(id));
   const filteredVehicleRows = isVehicleManagementPage(page)
     ? listRows.filter((row) => {
         const includes = (value: unknown, search: string) =>
@@ -1391,6 +1397,27 @@ function DataPage({
     const result = await response.json();
     setResetMessage(response.ok ? "Password reset successfully." : (result.error ?? "Unable to reset password."));
     if (response.ok) event.currentTarget.reset();
+  };
+  const updateSelectedUsersRole=async()=>{
+    if(!selectedUserIds.length||!bulkUserRole)return;
+    setBulkUserWorking(true);
+    const response=await fetch(`${API}/users/bulk/role`,{method:"PATCH",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({userIds:selectedUserIds,role:bulkUserRole})});
+    const result=await response.json().catch(()=>({}));
+    setBulkUserWorking(false);
+    setRoleSaveNotice(response.ok?{type:"success",message:`Role updated to ${roleLabel(bulkUserRole)} for ${Number(result.updated??selectedUserIds.length)} users.`}:{type:"error",message:String(result.error??"Unable to update selected users.")});
+    if(response.ok){setSelectedUserIds([]);setBulkUserRole("");await load()}
+    window.setTimeout(()=>setRoleSaveNotice(null),3200);
+  };
+  const resetSelectedUsersPasswords=async(event:FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();
+    if(!selectedUserIds.length)return;
+    setBulkUserWorking(true);setResetMessage("");
+    const form=new FormData(event.currentTarget);
+    const response=await fetch(`${API}/users/bulk/reset-password`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({userIds:selectedUserIds,newPassword:form.get("newPassword"),confirmPassword:form.get("confirmPassword")})});
+    const result=await response.json().catch(()=>({}));
+    setBulkUserWorking(false);
+    if(response.ok){setShowBulkPasswordReset(false);setSelectedUserIds([]);setRoleSaveNotice({type:"success",message:`Passwords reset successfully for ${Number(result.updated??selectedUserIds.length)} users.`});window.setTimeout(()=>setRoleSaveNotice(null),3200)}
+    else setResetMessage(String(result.error??"Unable to reset selected users' passwords."));
   };
   const saveSettings = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -3022,11 +3049,19 @@ function DataPage({
             <label>Role<select value={userFilters.role} onChange={(event) => updateUserFilter("role", event.target.value)}><option value="">All roles</option>{roleOptions.map((option) => <option key={option.role_key} value={option.role_key}>{option.role_name}</option>)}</select></label>
           </div>
         </section>
+        <section className="users-bulk-toolbar">
+          <div><b>{selectedUserIds.length}</b><span>user{selectedUserIds.length===1?"":"s"} selected</span></div>
+          <label>Change selected role<select value={bulkUserRole} disabled={!selectedUserIds.length||bulkUserWorking} onChange={event=>setBulkUserRole(event.target.value)}><option value="">Choose role</option>{roleOptions.map(option=><option key={option.role_key} value={option.role_key}>{option.role_name}</option>)}</select></label>
+          <button type="button" disabled={!selectedUserIds.length||!bulkUserRole||bulkUserWorking} onClick={()=>void updateSelectedUsersRole()}>{bulkUserWorking?"Updating…":"Apply Role"}</button>
+          <button type="button" className="secondary" disabled={!selectedUserIds.length||bulkUserWorking} onClick={()=>{setResetMessage("");setShowBulkPasswordReset(true)}}>Reset Passwords</button>
+          {selectedUserIds.length>0&&<button type="button" className="clear" onClick={()=>setSelectedUserIds([])}>Clear selection</button>}
+        </section>
         <section className="data-card users-role-card">
           <div className="users-role-table-scroll">
             <table>
             <thead>
               <tr>
+                <th className="users-select-cell"><input type="checkbox" aria-label="Select all users on this page" checked={allPagedUsersSelected} onChange={event=>setSelectedUserIds(current=>event.target.checked?Array.from(new Set([...current,...pagedUserIds])):current.filter(id=>!pagedUserIds.includes(id)))}/></th>
                 <th>Employee ID</th>
                 <th>Employee Name</th>
                 <th>Position</th>
@@ -3042,6 +3077,7 @@ function DataPage({
             <tbody>
               {pagedUserRows.map((r, i) => (
                 <tr key={String(r.id ?? r.username ?? i)}>
+                  <td className="users-select-cell"><input type="checkbox" aria-label={`Select ${String(r.first_name??r.username??"user")}`} checked={selectedUserIds.includes(String(r.id))} onChange={event=>setSelectedUserIds(current=>event.target.checked?[...current,String(r.id)]:current.filter(id=>id!==String(r.id)))}/></td>
                   <td>{String(r.employee_no ?? "—")}</td>
                   <td>
                     <b>
@@ -3095,6 +3131,19 @@ function DataPage({
             </div>
           )}
         </section>
+        {showBulkPasswordReset&&(
+          <div className="confirm-backdrop" onMouseDown={()=>!bulkUserWorking&&setShowBulkPasswordReset(false)}>
+            <form className="password-reset-dialog" onSubmit={resetSelectedUsersPasswords} onMouseDown={event=>event.stopPropagation()}>
+              <div className="password-reset-icon">↻</div>
+              <h2>Reset Selected Passwords</h2>
+              <p>{selectedUserIds.length} selected users will receive the same temporary password.</p>
+              <label>New Temporary Password<input name="newPassword" type="password" minLength={8} required autoFocus/></label>
+              <label>Confirm Password<input name="confirmPassword" type="password" minLength={8} required/></label>
+              {resetMessage&&<div className="reset-error">{resetMessage}</div>}
+              <div className="password-reset-actions"><button type="button" disabled={bulkUserWorking} onClick={()=>setShowBulkPasswordReset(false)}>Cancel</button><button className="primary" disabled={bulkUserWorking}>{bulkUserWorking?"Resetting…":`Reset ${selectedUserIds.length} Passwords`}</button></div>
+            </form>
+          </div>
+        )}
         {resetUser && (
           <div className="confirm-backdrop" onMouseDown={() => setResetUser(null)}>
             <form className="password-reset-dialog" onSubmit={resetUserPassword} onMouseDown={(event) => event.stopPropagation()}>

@@ -234,6 +234,26 @@ app.post('/api/roles', auth, asyncRoute(async (req,res) => {
   }finally{client.release()}
 }))
 
+app.patch('/api/users/bulk/role',auth,asyncRoute(async(req,res)=>{
+  if(req.user!.role!=='admin')return res.status(403).json({error:'Admin access required'})
+  const input=z.object({userIds:z.array(z.string().uuid()).min(1).max(5000),role:z.string().min(2).max(30).regex(/^[a-z][a-z0-9_]*$/)}).parse(req.body)
+  if(input.userIds.includes(req.user!.id))return res.status(400).json({error:'Your own administrator role cannot be changed in a bulk action.'})
+  const company=(await db.query('SELECT company_id FROM employees WHERE id=$1',[req.user!.employeeId])).rows[0]
+  const roleExists=await db.query('SELECT 1 FROM user_roles WHERE company_id=$1 AND role_key=$2',[company.company_id,input.role])
+  if(!roleExists.rowCount)return res.status(400).json({error:'Unknown role'})
+  const result=await db.query(`UPDATE users u SET role=$1 FROM employees e WHERE u.employee_id=e.id AND e.company_id=$2 AND u.id=ANY($3::uuid[]) RETURNING u.id`,[input.role,company.company_id,input.userIds])
+  res.json({updated:result.rowCount??0})
+}))
+
+app.post('/api/users/bulk/reset-password',auth,asyncRoute(async(req,res)=>{
+  if(req.user!.role!=='admin')return res.status(403).json({error:'Admin access required'})
+  const input=z.object({userIds:z.array(z.string().uuid()).min(1).max(5000),newPassword:z.string().min(8).max(128),confirmPassword:z.string().min(8).max(128)}).refine(value=>value.newPassword===value.confirmPassword,{message:'Passwords do not match'}).parse(req.body)
+  const company=(await db.query('SELECT company_id FROM employees WHERE id=$1',[req.user!.employeeId])).rows[0]
+  const hash=await bcrypt.hash(input.newPassword,12)
+  const result=await db.query(`UPDATE users u SET password_hash=$1 FROM employees e WHERE u.employee_id=e.id AND e.company_id=$2 AND u.id=ANY($3::uuid[]) RETURNING u.id`,[hash,company.company_id,input.userIds])
+  res.json({updated:result.rowCount??0,message:'Passwords reset successfully'})
+}))
+
 app.post('/api/users/:id/reset-password',auth,asyncRoute(async(req,res)=>{
   if(req.user!.role!=='admin')return res.status(403).json({error:'Admin access required'});const input=z.object({newPassword:z.string().min(1).max(128),confirmPassword:z.string().min(1).max(128)}).refine(value=>value.newPassword===value.confirmPassword,{message:'Passwords do not match'}).parse(req.body);const hash=await bcrypt.hash(input.newPassword,12);const result=await db.query('UPDATE users SET password_hash=$1 WHERE id=$2 RETURNING id',[hash,req.params.id]);if(!result.rowCount)return res.status(404).json({error:'User not found'});res.json({message:'Password reset successfully'})
 }))
