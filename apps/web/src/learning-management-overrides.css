@@ -8,3 +8,8 @@
 .lms-content-detail-media.document .lms-written-card span{display:-webkit-box;align-self:start;overflow:hidden;color:#405968;font-size:12px;line-height:1.65;-webkit-line-clamp:7;-webkit-box-orient:vertical;white-space:pre-wrap}
 .lms-content-detail-media.document .lms-written-card b{align-self:end;font-size:11px;letter-spacing:.01em}
 @media(max-width:760px){.lms-content-detail-media.document{padding:12px}.lms-content-detail-media.document .lms-written-card{min-height:180px;padding:18px;grid-template-columns:42px minmax(0,1fr)}.lms-content-detail-media.document .lms-written-card i{width:40px;height:40px}}
+.lms-document-reader-backdrop{z-index:1400}
+.lms-document-reader{width:min(980px,calc(100vw - 40px));max-height:90vh;overflow:hidden}
+.lms-document-reader .lms-document-body{min-height:360px;max-height:calc(90vh - 145px);padding:34px 40px}
+.lms-content-detail{width:min(1080px,calc(100vw - 40px));max-height:92vh}
+@media(max-width:760px){.lms-document-reader,.lms-content-detail{width:calc(100vw - 20px);max-height:94vh}.lms-document-reader .lms-document-body{min-height:260px;max-height:calc(94vh - 135px);padding:22px 20px}}
