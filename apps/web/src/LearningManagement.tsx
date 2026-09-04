@@ -131,6 +131,27 @@ export default function LearningManagement({token,role}:{token:string;role:strin
     }
     return()=>{departmentOption.remove();picker.remove()};
   },[showCourse,editingCourse,departments,employees,selectedDepartmentId]);
+  useEffect(()=>{
+    const renderedDescriptions=Array.from(document.querySelectorAll<HTMLElement>(".lms-modules>article")).map((card,index)=>{
+      const module=selected?.modules[index],info=card.querySelector<HTMLElement>(".lms-module-info");
+      if(!module?.description?.trim()||!info)return null;
+      const description=document.createElement("p");
+      description.className="lms-module-description";
+      description.textContent=module.description;
+      info.insertBefore(description,info.querySelector("div"));
+      return description;
+    });
+    return()=>renderedDescriptions.forEach(description=>description?.remove());
+  },[selected]);
+  useEffect(()=>{
+    const header=document.querySelector<HTMLElement>(".lms-content-viewer>header>div:first-child");
+    if(!viewerModule?.description?.trim()||!header)return;
+    const description=document.createElement("p");
+    description.className="lms-viewer-module-description";
+    description.textContent=viewerModule.description;
+    header.insertBefore(description,header.querySelector("p"));
+    return()=>description.remove();
+  },[viewerModule]);
   useEffect(()=>{document.querySelectorAll<HTMLElement>(".lms-modal small").forEach(item=>{if(item.textContent?.includes("files up to 100 MB"))item.textContent=item.textContent.replace("100 MB","1 GB")})},[contentModule,editingContent]);
   useEffect(()=>{document.querySelectorAll<HTMLElement>(".lms-content-caption p,.lms-viewer-caption p").forEach(item=>{const source=item.dataset.richSource??item.textContent??"";if(item.dataset.richSource===source)return;item.dataset.richSource=source;item.innerHTML=sanitizeRichText(source);item.classList.add("lms-rich-description")})},[courses,viewerModule]);
   useEffect(()=>{if(assessment){const heading=document.querySelector<HTMLElement>(".lms-assessment header small"),note=document.querySelector<HTMLElement>(".lms-assessment footer>span");if(heading)heading.textContent=assessment.assessmentType==="pre_test"?"PRE TEST · ONE ATTEMPT ONLY":`FINAL ASSESSMENT · ATTEMPT ${assessment.attemptNo}`;if(note)note.textContent=assessment.assessmentType==="pre_test"?"This Pre Test can only be taken once.":`Passing score: 80% · ${assessment.attemptsRemaining} attempt(s) available`}},[assessment]);
