@@ -23,6 +23,27 @@ export default function RichTextEditor({ name, initialValue = "", placeholder = 
     if (counterRef.current) counterRef.current.textContent = `${(editorRef.current?.innerText.length ?? 0).toLocaleString()}/100,000`;
   }, [initialValue]);
 
+  useEffect(() => {
+    const editor = editorRef.current;
+    const form = editor?.closest("form");
+    if (!editor || !form) return;
+    const latestValue = () => sanitizeRichText(editor.innerHTML);
+    const syncBeforeSubmit = () => {
+      if (inputRef.current) inputRef.current.value = latestValue();
+    };
+    const syncFormData = (event: FormDataEvent) => {
+      const value = latestValue();
+      if (inputRef.current) inputRef.current.value = value;
+      event.formData.set(name, value);
+    };
+    form.addEventListener("submit", syncBeforeSubmit, true);
+    form.addEventListener("formdata", syncFormData);
+    return () => {
+      form.removeEventListener("submit", syncBeforeSubmit, true);
+      form.removeEventListener("formdata", syncFormData);
+    };
+  }, [name]);
+
   const rememberSelection = () => {
     const selection = window.getSelection();
     if (selection?.rangeCount && editorRef.current?.contains(selection.anchorNode)) selectionRef.current = selection.getRangeAt(0).cloneRange();
