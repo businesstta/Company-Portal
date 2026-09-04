@@ -2,3 +2,9 @@
 .lms-module-description{max-width:780px;margin:0 0 9px;color:#667887;font-size:11px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
 .lms-viewer-module-description{max-width:700px;margin:6px 0 3px!important;color:#536776!important;font-size:11px!important;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
 .lms-upload-status{z-index:2400;pointer-events:none}
+.lms-content-detail-media.document{min-height:0;padding:24px;background:linear-gradient(145deg,#edf7f6,#f7fbfb)}
+.lms-content-detail-media.document .lms-written-card{display:grid;width:100%;height:auto;min-height:210px;aspect-ratio:auto;grid-template-columns:52px minmax(0,1fr);grid-template-rows:auto 1fr auto;align-content:start;gap:8px 14px;padding:24px;border:1px solid #cfe2e0;border-radius:13px;background:#fff;box-shadow:0 10px 30px #183f4b12}
+.lms-content-detail-media.document .lms-written-card i{grid-row:1/4;width:48px;height:48px;border-radius:12px;font-size:11px}
+.lms-content-detail-media.document .lms-written-card span{display:-webkit-box;align-self:start;overflow:hidden;color:#405968;font-size:12px;line-height:1.65;-webkit-line-clamp:7;-webkit-box-orient:vertical;white-space:pre-wrap}
+.lms-content-detail-media.document .lms-written-card b{align-self:end;font-size:11px;letter-spacing:.01em}
+@media(max-width:760px){.lms-content-detail-media.document{padding:12px}.lms-content-detail-media.document .lms-written-card{min-height:180px;padding:18px;grid-template-columns:42px minmax(0,1fr)}.lms-content-detail-media.document .lms-written-card i{width:40px;height:40px}}

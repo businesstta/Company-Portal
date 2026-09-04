@@ -3119,7 +3119,7 @@ function DataPage({
                 <label>
                   Rows
                   <select value={userPageSize} onChange={(event) => { setUserPageSize(Number(event.target.value)); setUserPage(1); }}>
-                    <option value="25">25</option><option value="50">50</option><option value="100">100</option>
+                    <option value="25">25</option><option value="50">50</option><option value="100">100</option><option value="1000">1000</option><option value="2000">2000</option>
                   </select>
                 </label>
                 <button disabled={currentUserPage === 1} onClick={() => setUserPage((value) => Math.max(1, value - 1))}>Previous</button>
