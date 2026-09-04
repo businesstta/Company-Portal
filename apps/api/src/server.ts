@@ -200,7 +200,8 @@ app.get('/api/profile', auth, asyncRoute(async (req,res) => {
 
 app.get('/api/users', auth, asyncRoute(async (req,res) => {
   if(req.user!.role!=='admin')return res.status(403).json({error:'Admin access required'})
-  const result=await db.query(`SELECT u.id,u.email,u.username,u.role,u.is_active,u.last_login_at,u.created_at,e.employee_no,e.first_name,e.last_name,e.position,e.organization,e.project_location,d.name department,COALESCE(NULLIF(trim(m.first_name||' '||m.last_name),''),m.employee_no) report_to,'********' password_mask FROM users u LEFT JOIN employees e ON e.id=u.employee_id LEFT JOIN departments d ON d.id=e.department_id LEFT JOIN employees m ON m.id=e.manager_id ORDER BY u.created_at DESC`)
+  const result=await db.query(`SELECT u.id,u.email,u.username,u.role,u.is_active,u.last_login_at,u.created_at,e.employee_no,e.first_name,e.last_name,e.position,e.organization,e.project_location,d.name department,COALESCE(NULLIF(trim(m.first_name||' '||m.last_name),''),m.employee_no) report_to,'********' password_mask FROM users u JOIN employees e ON e.id=u.employee_id LEFT JOIN departments d ON d.id=e.department_id LEFT JOIN employees m ON m.id=e.manager_id WHERE e.company_id=(SELECT company_id FROM employees WHERE id=$1) ORDER BY u.created_at DESC`,[req.user!.employeeId])
+  res.set('Cache-Control','private, no-cache')
   res.json(result.rows)
 }))
 

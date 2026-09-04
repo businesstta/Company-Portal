@@ -216,12 +216,38 @@ type UserFilters = {
   employeeNo: string;
   name: string;
   position: string;
-  department: string;
-  organization: string;
-  projectLocation: string;
+  department: string[];
+  organization: string[];
+  projectLocation: string[];
   reportTo: string;
   role: string;
 };
+
+function SearchableMultiSelect({ label, options, values, onChange }: {
+  label: string;
+  options: string[];
+  values: string[];
+  onChange: (values: string[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const matches = options.filter((option) => option.toLowerCase().includes(query.trim().toLowerCase()));
+  const toggle = (option: string) => onChange(values.includes(option) ? values.filter((value) => value !== option) : [...values, option]);
+  return <label className="user-multi-filter">{label}
+    <details>
+      <summary>{values.length ? `${values.length} selected` : `All ${label.toLowerCase()}s`}</summary>
+      <div className="user-multi-menu" onClick={(event) => event.stopPropagation()}>
+        <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${label.toLowerCase()}...`} />
+        <div className="user-multi-options">
+          {matches.length ? matches.map((option) => <label key={option}>
+            <input type="checkbox" checked={values.includes(option)} onChange={() => toggle(option)} />
+            <span>{option}</span>
+          </label>) : <p>No matches found</p>}
+        </div>
+        {values.length > 0 && <button type="button" onClick={() => onChange([])}>Clear selection</button>}
+      </div>
+    </details>
+  </label>;
+}
 type VehicleFilters = {
   vehicleName: string;
   vehicleType: string;
@@ -843,8 +869,8 @@ function DataPage({
   const [resetMessage, setResetMessage] = useState("");
   const [roleSaveNotice, setRoleSaveNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [userFilters, setUserFilters] = useState<UserFilters>({
-    employeeNo: "", name: "", position: "", department: "",
-    organization: "", projectLocation: "", reportTo: "", role: "",
+    employeeNo: "", name: "", position: "", department: [],
+    organization: [], projectLocation: [], reportTo: "", role: "",
   });
   const [userPage, setUserPage] = useState(1);
   const [userPageSize, setUserPageSize] = useState(25);
@@ -994,8 +1020,9 @@ function DataPage({
         const includes = (value: unknown, search: string) => String(value ?? "").toLowerCase().includes(search.trim().toLowerCase());
         const name = `${String(row.first_name ?? "")} ${String(row.last_name ?? "")}`;
         return includes(row.employee_no, userFilters.employeeNo) && includes(name, userFilters.name) &&
-          includes(row.position, userFilters.position) && includes(row.department, userFilters.department) &&
-          includes(row.organization, userFilters.organization) && includes(row.project_location, userFilters.projectLocation) &&
+          includes(row.position, userFilters.position) && (!userFilters.department.length || userFilters.department.includes(String(row.department ?? ""))) &&
+          (!userFilters.organization.length || userFilters.organization.includes(String(row.organization ?? ""))) &&
+          (!userFilters.projectLocation.length || userFilters.projectLocation.includes(String(row.project_location ?? ""))) &&
           includes(row.report_to, userFilters.reportTo) && includes(row.role, userFilters.role);
       })
     : listRows;
@@ -1023,7 +1050,9 @@ function DataPage({
   const pagedVehicleRows = isVehicleManagementPage(page)
     ? filteredVehicleRows.slice((currentVehiclePage - 1) * vehiclePageSize, currentVehiclePage * vehiclePageSize)
     : filteredVehicleRows;
-  const updateUserFilter = (key: keyof UserFilters, value: string) => {
+  const userFilterOptions = (field: "department" | "organization" | "project_location") =>
+    [...new Set(listRows.map((row) => String(row[field] ?? "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const updateUserFilter = <K extends keyof UserFilters>(key: K, value: UserFilters[K]) => {
     setUserFilters((current) => ({ ...current, [key]: value }));
     setUserPage(1);
   };
@@ -1043,7 +1072,6 @@ function DataPage({
     if (!endpoint) return;
     const version = ++requestVersion.current;
     setLoading(true);
-    setRows(endpoint === "reports/summary" ? {} : []);
     fetch(`${API}/${endpoint}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -2981,15 +3009,15 @@ function DataPage({
         <section className="employee-filter-card users-filter-card">
           <div className="employee-filter-heading">
             <div><h2>Filter users</h2><p>Search user accounts by employee information and role.</p></div>
-            <button type="button" onClick={() => { setUserFilters({ employeeNo: "", name: "", position: "", department: "", organization: "", projectLocation: "", reportTo: "", role: "" }); setUserPage(1); }}>Clear filters</button>
+            <button type="button" onClick={() => { setUserFilters({ employeeNo: "", name: "", position: "", department: [], organization: [], projectLocation: [], reportTo: "", role: "" }); setUserPage(1); }}>Clear filters</button>
           </div>
           <div className="employee-filter-grid">
             <label>Employee ID<input value={userFilters.employeeNo} onChange={(event) => updateUserFilter("employeeNo", event.target.value)} /></label>
             <label>Employee Name<input value={userFilters.name} onChange={(event) => updateUserFilter("name", event.target.value)} /></label>
             <label>Position<input value={userFilters.position} onChange={(event) => updateUserFilter("position", event.target.value)} /></label>
-            <label>Department<input value={userFilters.department} onChange={(event) => updateUserFilter("department", event.target.value)} /></label>
-            <label>Organization<input value={userFilters.organization} onChange={(event) => updateUserFilter("organization", event.target.value)} /></label>
-            <label>Project Location<input value={userFilters.projectLocation} onChange={(event) => updateUserFilter("projectLocation", event.target.value)} /></label>
+            <SearchableMultiSelect label="Department" options={userFilterOptions("department")} values={userFilters.department} onChange={(values) => updateUserFilter("department", values)} />
+            <SearchableMultiSelect label="Organization" options={userFilterOptions("organization")} values={userFilters.organization} onChange={(values) => updateUserFilter("organization", values)} />
+            <SearchableMultiSelect label="Project Location" options={userFilterOptions("project_location")} values={userFilters.projectLocation} onChange={(values) => updateUserFilter("projectLocation", values)} />
             <label>Report To<input value={userFilters.reportTo} onChange={(event) => updateUserFilter("reportTo", event.target.value)} /></label>
             <label>Role<select value={userFilters.role} onChange={(event) => updateUserFilter("role", event.target.value)}><option value="">All roles</option>{roleOptions.map((option) => <option key={option.role_key} value={option.role_key}>{option.role_name}</option>)}</select></label>
           </div>
