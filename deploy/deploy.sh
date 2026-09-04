@@ -68,5 +68,11 @@ if [[ "$healthy" -ne 1 ]]; then
   exit 1
 fi
 
+if [[ "$branch" == "develop" && -f deploy/staging-learning-report-seed.sql ]]; then
+  echo "Adding non-destructive staging LMS report sample data"
+  "${compose[@]}" exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+    < deploy/staging-learning-report-seed.sql
+fi
+
 "${compose[@]}" ps
 echo "Successfully deployed $revision to $compose_project"
