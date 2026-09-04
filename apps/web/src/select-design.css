@@ -6,10 +6,10 @@ html select:not([multiple]) {
   border-color: #dcd8e8;
   border-radius: 7px !important;
   background-color: #fff !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='10' viewBox='0 0 16 10'%3E%3Cpath d='m3 3 5 5 5-5' fill='none' stroke='%236f687d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='m1 1 4 4 4-4' fill='none' stroke='%235f6878' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
   background-repeat: no-repeat !important;
   background-position: right 14px center !important;
-  background-size: 12px 8px !important;
+  background-size: 10px 6px !important;
   cursor: pointer;
   transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
 }
@@ -35,6 +35,21 @@ select::-ms-expand {
   display: none;
 }
 
+/* Use the same small chevron for searchable/custom select controls. */
+.user-multi-filter summary::after {
+  width: 10px;
+  height: 6px;
+  flex: 0 0 10px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='m1 1 4 4 4-4' fill='none' stroke='%235f6878' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/10px 6px no-repeat;
+  color: transparent !important;
+  content: "" !important;
+  transition: transform .16s ease;
+}
+
+.user-multi-filter details[open] summary::after {
+  transform: rotate(180deg);
+}
+
 /* Match the custom approver picker to the shared chevron. */
 .approver-select-trigger {
   border-color: #dcd8e8 !important;
@@ -53,13 +68,20 @@ select::-ms-expand {
   position: absolute;
   top: 4px;
   left: 4px;
-  width: 7px;
-  height: 7px;
-  border-right: 2px solid #6f687d;
-  border-bottom: 2px solid #6f687d;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid #5f6878;
+  border-bottom: 1.5px solid #5f6878;
   content: "";
   transform: rotate(45deg);
   transition: transform .16s ease, top .16s ease;
+}
+
+.ferry-search-control button span {
+  width: 6px !important;
+  height: 6px !important;
+  border-right: 1.5px solid currentColor !important;
+  border-bottom: 1.5px solid currentColor !important;
 }
 
 .approver-search-select.open .approver-select-trigger i::before {
@@ -82,10 +104,10 @@ select::-ms-expand {
   position: absolute;
   top: 34px;
   right: 16px;
-  width: 7px;
-  height: 7px;
-  border-right: 2px solid #6f687d;
-  border-bottom: 2px solid #6f687d;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid #5f6878;
+  border-bottom: 1.5px solid #5f6878;
   content: "";
   pointer-events: none;
   transform: rotate(45deg);
