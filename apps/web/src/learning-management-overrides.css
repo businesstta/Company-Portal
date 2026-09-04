@@ -1,3 +1,4 @@
 .lms-duration-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}.lms-duration-fields input{width:100%}
 .lms-module-description{max-width:780px;margin:0 0 9px;color:#667887;font-size:11px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
 .lms-viewer-module-description{max-width:700px;margin:6px 0 3px!important;color:#536776!important;font-size:11px!important;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.lms-upload-status{z-index:2400;pointer-events:none}
