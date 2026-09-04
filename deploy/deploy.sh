@@ -72,6 +72,9 @@ if [[ "$branch" == "develop" && -f deploy/staging-learning-report-seed.sql ]]; t
   echo "Adding non-destructive staging LMS report sample data"
   "${compose[@]}" exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
     < deploy/staging-learning-report-seed.sql
+  echo "Verifying staging LMS report sample courses"
+  "${compose[@]}" exec -T db sh -c \
+    'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT company_id, course_code, title, status FROM learning_courses WHERE course_code LIKE '\''LDR-DEMO-%'\'' ORDER BY company_id, course_code;"'
 fi
 
 "${compose[@]}" ps
