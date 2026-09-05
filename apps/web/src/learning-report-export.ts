@@ -1,14 +1,14 @@
 export type ExportCell = string | number | null | undefined;
 
 const safeName = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-const xmlEscape = (value: ExportCell) => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
 const pdfEscape = (value: ExportCell) => String(value ?? "—").replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)").replace(/[^\x20-\x7e]/g, "-");
 const download = (blob: Blob, filename: string) => { const url = URL.createObjectURL(blob), link = document.createElement("a"); link.href = url; link.download = filename; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 0); };
 
-export function exportExcel(title: string, headers: string[], rows: ExportCell[][]) {
-  const cells = (values: ExportCell[], header = false) => `<Row>${values.map(value => `<Cell${header ? ' ss:StyleID="Header"' : ""}><Data ss:Type="${typeof value === "number" ? "Number" : "String"}">${xmlEscape(value)}</Data></Cell>`).join("")}</Row>`;
-  const xml = `<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="Header"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#6554DC" ss:Pattern="Solid"/></Style></Styles><Worksheet ss:Name="Report"><Table>${cells(headers, true)}${rows.map(row => cells(row)).join("")}</Table></Worksheet></Workbook>`;
-  download(new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8" }), `${safeName(title)}-${new Date().toISOString().slice(0, 10)}.xls`);
+export async function exportExcel(title: string, headers: string[], rows: ExportCell[][], token: string) {
+  const response = await fetch(`${API}/reports/learning-export`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ title, headers, rows }) });
+  if (!response.ok) throw new Error("Unable to export the Excel workbook");
+  download(await response.blob(), `${safeName(title)}-${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
 export function exportPdf(title: string, headers: string[], rows: ExportCell[][]) {

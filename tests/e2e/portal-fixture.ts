@@ -21,6 +21,7 @@ export async function mockPortalApi(page: Page) {
     else if (path.endsWith("/notifications/unread-count")) body = { count: 0 };
     else if (path.endsWith("/branding")) body = { iconText: "CP", title: "Company Portal", subtitle: "People & Operations", iconColor: "#6d5ce7" };
     else if (path.endsWith("/reports/learning-detail")) body = learningRows;
+    else if (path.endsWith("/reports/learning-export")) return route.fulfill({ status: 200, contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", body: "PK\u0003\u0004mock-xlsx" });
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
   });
 }

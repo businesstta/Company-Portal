@@ -81,7 +81,7 @@ export default function LearningDetailReport({ token }: { token: string }) {
   const clearFilters = () => setFilters({ search: "", department: [], organization: [], projectLocation: [], course: [], status: [] });
   const setSearch = (value: string) => setFilters(current => ({ ...current, search: value }));
   const setMultiFilter = (key: MultiFilterKey, value: string[]) => setFilters(current => ({ ...current, [key]: value }));
-  const exportData = (format: "excel" | "pdf", title: string, headers: string[], exportRows: ExportCell[][]) => (format === "excel" ? exportExcel : exportPdf)(title, headers, exportRows);
+  const exportData = (format: "excel" | "pdf", title: string, headers: string[], exportRows: ExportCell[][]) => { if (format === "excel") void exportExcel(title, headers, exportRows, token).catch(reason => window.alert(reason instanceof Error ? reason.message : "Unable to export Excel")); else exportPdf(title, headers, exportRows); };
   const detailHeaders = ["Employee ID", "Employee", "Department", "Organization", "Project Location", "Position", "Course Code", "Course", "Progress", "Final Attempts", "Best Score", "Status"];
   const detailRows = filtered.map(row => [row.employee_no, row.employee_name, row.department, row.organization, row.project_location, row.position, row.course_code, row.course_title, `${row.progress_percentage}%`, row.final_attempts, row.best_score === null ? "—" : `${row.best_score}%`, row.certificate_earned ? "Completed · Certified" : statusLabel(row.learning_status)]);
 

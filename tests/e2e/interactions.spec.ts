@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 import { mockPortalApi } from "./portal-fixture";
 
 test("mobile navigation opens, navigates and closes without blocking the page", async ({ page }) => {
@@ -35,7 +36,11 @@ test("learning report filters update data and clear correctly", async ({ page })
   await expect(page.getByLabel("Rows per page")).toHaveValue("200");
   const excelDownload = page.waitForEvent("download");
   await page.getByTitle("Export Learning Management details to Excel").click();
-  await expect((await excelDownload).suggestedFilename()).toMatch(/learning-management-details-.*\.xls$/);
+  const workbook = await excelDownload;
+  await expect(workbook.suggestedFilename()).toMatch(/learning-management-details-.*\.xlsx$/);
+  const workbookPath = await workbook.path();
+  expect(workbookPath).not.toBeNull();
+  expect((await readFile(workbookPath!)).subarray(0, 4).toString("binary")).toBe("PK\u0003\u0004");
   const pdfDownload = page.waitForEvent("download");
   await page.getByTitle("Export Assessment performance to PDF").click();
   await expect((await pdfDownload).suggestedFilename()).toMatch(/assessment-performance-.*\.pdf$/);

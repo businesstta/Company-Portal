@@ -46,7 +46,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
   next()
 })
-app.use(express.json({ limit: '1mb' }))
+app.use(express.json({ limit: '20mb' }))
 app.use((req: Request,_res: Response,next: NextFunction) => {
   if(typeof req.body?.description==='string')req.body.description=[...req.body.description].filter(character=>{const code=character.charCodeAt(0);return code===9||code===10||code===13||(code>=32&&code!==127)}).join('')
   next()
@@ -917,6 +917,19 @@ app.get('/api/reports/learning-detail',auth,permit('Reports'),asyncRoute(async(r
     LEFT JOIN learning_certificates cert ON cert.employee_id=e.id AND cert.course_id=c.id AND cert.status='valid'
     WHERE e.company_id=$1 AND e.employment_status='active' ORDER BY e.employee_no,c.course_code`,[company.company_id])
   res.json(result.rows)
+}))
+
+const learningExportInput=z.object({title:z.string().trim().min(1).max(120),headers:z.array(z.string().max(120)).min(1).max(30),rows:z.array(z.array(z.union([z.string().max(5000),z.number(),z.null()])).max(30)).max(25000)})
+app.post('/api/reports/learning-export',auth,permit('Reports'),asyncRoute(async(req,res)=>{
+  const input=learningExportInput.parse(req.body),workbook=new ExcelJS.Workbook();workbook.creator='Company Portal';workbook.created=new Date()
+  const sheetName=input.title.replace(/[\\/*?:[\]]/g,' ').trim().slice(0,31)||'Learning Report'
+  const sheet=workbook.addWorksheet(sheetName,{views:[{state:'frozen',ySplit:1}]})
+  sheet.columns=input.headers.map((header,index)=>({header,key:`column_${index}`,width:Math.max(14,Math.min(38,Math.max(header.length+4,...input.rows.slice(0,500).map(row=>String(row[index]??'').length+2))))}))
+  input.rows.forEach(row=>sheet.addRow(row));sheet.autoFilter=`A1:${sheet.getColumn(input.headers.length).letter}1`
+  sheet.getRow(1).height=24;sheet.getRow(1).eachCell(cell=>{cell.font={bold:true,color:{argb:'FFFFFFFF'}};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF6554DC'}};cell.alignment={vertical:'middle'}})
+  sheet.eachRow((row,rowNumber)=>{if(rowNumber>1&&rowNumber%2===0)row.eachCell(cell=>{cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF7F8FC'}}})})
+  const buffer=await workbook.xlsx.writeBuffer(),filename=input.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'learning-report'
+  res.setHeader('Content-Disposition',`attachment; filename="${filename}-${new Date().toISOString().slice(0,10)}.xlsx"`);res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').send(Buffer.from(buffer))
 }))
 
 app.get('/api/reports/payment-requests', auth, asyncRoute(async (req,res) => {
