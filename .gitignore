@@ -13,3 +13,5 @@ backups/
 *.log
 *.out
 *.err
+playwright-report/
+test-results/

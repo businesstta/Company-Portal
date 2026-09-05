@@ -11,6 +11,11 @@
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "check:responsive": "node scripts/check-responsive.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium firefox webkit",
     "check": "pnpm lint && pnpm check:responsive && pnpm build"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
   }
 }

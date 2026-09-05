@@ -32,6 +32,19 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      - name: Install browser test runtimes
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
+      - name: Run responsive browser regression tests
+        run: pnpm test:e2e
+      - name: Upload browser test evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
 
   deploy-staging:
     needs: validate
