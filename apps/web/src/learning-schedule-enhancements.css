@@ -1,0 +1,7 @@
+.schedule-grid article > div button.completed {
+  border: 1px dashed #36a873;
+  border-left: 4px dashed #168456;
+}
+.schedule-agenda article button.completed {
+  border: 1px dashed #79c5a0;
+}

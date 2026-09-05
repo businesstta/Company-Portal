@@ -1,0 +1,20 @@
+.learning-multi-select { position: relative; min-width: 0; }
+.learning-multi-select > span { display: block; color: #36445a; font-size: 10.5px; font-weight: 700; }
+.learning-multi-select > button { display: flex; align-items: center; justify-content: space-between; width: 100%; height: 39px; margin-top: 6px; padding: 0 11px; border: 1px solid #dce2ea; border-radius: 8px; background: #fff; color: #172a4d; font-size: 11.5px; cursor: pointer; }
+.learning-multi-select > button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.learning-multi-select > button i { width: 7px; height: 7px; flex: none; margin: 0 2px 4px 10px; border-right: 1.5px solid #68758a; border-bottom: 1.5px solid #68758a; transform: rotate(45deg); }
+.learning-multi-select.open > button i { margin-top: 5px; transform: rotate(225deg); }
+.learning-multi-menu { position: absolute; z-index: 80; top: calc(100% + 5px); left: 0; width: 100%; min-width: 220px; padding: 8px; border: 1px solid #dce2ea; border-radius: 9px; background: #fff; box-shadow: 0 12px 30px rgba(18,41,87,.16); }
+.learning-multi-menu > input { height: 34px; margin: 0 0 7px; }
+.learning-multi-menu > div { display: grid; max-height: 190px; overflow-y: auto; }
+.learning-multi-menu > div label { display: flex; align-items: center; gap: 8px; padding: 7px 6px; border-radius: 6px; cursor: pointer; }
+.learning-multi-menu > div label:hover { background: #f4f3ff; }
+.learning-multi-menu input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: #6554dc; }
+.learning-multi-menu p { margin: 8px; color: #7d8899; font-size: 10.5px; }
+.learning-multi-menu > button { width: 100%; margin-top: 6px; border: 0; background: transparent; color: #6554dc; font-size: 10px; font-weight: 700; cursor: pointer; }
+.learning-table-scroll { max-height: clamp(360px,58vh,720px); overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.learning-report-table th { position: sticky; z-index: 2; top: 0; }
+.learning-pagination-controls, .learning-pagination-controls nav { display: flex; align-items: center; gap: 5px; }
+.learning-pagination-controls > label { display: flex; align-items: center; gap: 6px; margin-right: 7px; }
+.learning-pagination-controls select { height: 31px; padding: 0 27px 0 8px; border: 1px solid #dce2ea; border-radius: 7px; background-color: #fff; color: #4f5d73; font-size: 10px; }
+@media (max-width: 650px) { .learning-pagination-controls { align-items: flex-start; flex-wrap: wrap; } .learning-pagination-controls nav { flex-wrap: wrap; } }
