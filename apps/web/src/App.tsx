@@ -4752,7 +4752,7 @@ function App() {
         />
       )}
 
-      <main>
+      <main className="app-main">
         <header className="app-header">
           <div className="header-left">
             <button

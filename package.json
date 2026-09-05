@@ -10,6 +10,7 @@
     "start:api": "pnpm --filter @company-portal/api start",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
-    "check": "pnpm lint && pnpm build"
+    "check:responsive": "node scripts/check-responsive.mjs",
+    "check": "pnpm lint && pnpm check:responsive && pnpm build"
   }
 }
