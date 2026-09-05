@@ -1,26 +1,8 @@
-import { expect, test, type Page, type Route } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { mockPortalApi } from "./portal-fixture";
 
 const allWidths = [320, 360, 390, 412, 768, 1024, 1280, 1366, 1440, 1920, 2560, 3840];
 const heights = new Map([[320, 568], [360, 640], [390, 844], [412, 915], [768, 1024], [1024, 768]]);
-const dashboard = {
-  stats: { totalEmployees: 1033, presentToday: 900, pendingApprovals: 0, onLeave: 3 },
-  attendance: { present: 900, absent: 100, leave: 33 }, departments: [], recentRequests: [],
-};
-
-async function mockPortalApi(page: Page) {
-  await page.addInitScript(() => localStorage.setItem("portal_token", "e2e-token"));
-  await page.route("**/api/**", async (route: Route) => {
-    const path = new URL(route.request().url()).pathname;
-    let body: unknown = [];
-    if (path.endsWith("/me/navigation")) body = { menus: ["*"], role: "admin", isWorkflowApprover: true };
-    else if (path.endsWith("/profile")) body = { first_name: "Responsive", last_name: "Tester" };
-    else if (path.endsWith("/dashboard")) body = dashboard;
-    else if (path.endsWith("/notifications/unread-count")) body = { count: 0 };
-    else if (path.endsWith("/branding")) body = { iconText: "CP", title: "Company Portal", subtitle: "People & Operations", iconColor: "#6d5ce7" };
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
-  });
-}
-
 async function expectViewportSafe(page: Page, label: string) {
   await expect(page.locator("body"), `${label}: page rendered`).toBeVisible();
   const layout = await page.evaluate(() => ({
