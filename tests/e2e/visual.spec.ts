@@ -20,18 +20,25 @@ function screenshotOptions(page: import("@playwright/test").Page) {
 test.skip(({ browserName }) => browserName !== "chromium", "One stable browser owns pixel baselines; all engines run structural checks.");
 
 for (const viewport of viewports) {
-  test(`visual baseline: ${viewport.name}`, async ({ page }) => {
+  test(`login visual baseline: ${viewport.name}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto("/login");
     await stabilizeRendering(page);
     await expect(page.locator(".login-card")).toHaveScreenshot(`login-${viewport.name}.png`, screenshotOptions(page));
+  });
 
+  test(`Learning Management visual baseline: ${viewport.name}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
     await mockPortalApi(page);
     await page.goto("/hr/learning-management");
     await stabilizeRendering(page);
     await expect(page.getByRole("heading", { name: "Learning Management", exact: true })).toBeVisible();
     await expect(page.locator(".content")).toHaveScreenshot(`learning-management-${viewport.name}.png`, screenshotOptions(page));
+  });
 
+  test(`L&D Report visual baseline: ${viewport.name}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await mockPortalApi(page);
     await page.goto("/reports/landd-detail-report");
     await stabilizeRendering(page);
     await expect(page.getByRole("heading", { name: "L&D Detail Report" })).toBeVisible();
