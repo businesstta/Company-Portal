@@ -4753,7 +4753,7 @@ function App() {
       )}
 
       <main>
-        <header>
+        <header className="app-header">
           <div className="header-left">
             <button
               className="menu-toggle"
