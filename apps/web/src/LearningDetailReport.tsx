@@ -29,19 +29,21 @@ export default function LearningDetailReport({ token }: { token: string }) {
   const [rows, setRows] = useState<LearningRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(50);
   const [filters, setFilters] = useState({ search: "", department: [] as string[], organization: [] as string[], projectLocation: [] as string[], course: [] as string[], status: [] as string[] });
 
   useEffect(() => {
-    const controller = new AbortController(); setLoading(true); setError("");
+    const controller = new AbortController(); let active = true, timedOut = false; setLoading(true); setError("");
+    const timeout = window.setTimeout(() => { timedOut = true; controller.abort(); }, 15_000);
     fetch(`${API}/reports/learning-detail`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
       .then(async response => { if (!response.ok) throw new Error("Unable to load the learning report"); return response.json(); })
-      .then(data => setRows(Array.isArray(data) ? data : []))
-      .catch(reason => { if (!(reason instanceof DOMException && reason.name === "AbortError")) setError(reason instanceof Error ? reason.message : "Unable to load the learning report"); })
-      .finally(() => setLoading(false));
-    return () => controller.abort();
-  }, [token]);
+      .then(data => { if (active) setRows(Array.isArray(data) ? data : []); })
+      .catch(reason => { if (active && timedOut) setError("The learning report took too long to load. Please retry."); else if (active && !(reason instanceof DOMException && reason.name === "AbortError")) setError(reason instanceof Error ? reason.message : "Unable to load the learning report"); })
+      .finally(() => { window.clearTimeout(timeout); if (active) setLoading(false); });
+    return () => { active = false; window.clearTimeout(timeout); controller.abort(); };
+  }, [token, reloadKey]);
 
   const departments = useMemo(() => uniqueValues(rows, "department"), [rows]);
   const organizations = useMemo(() => uniqueValues(rows, "organization"), [rows]);
@@ -114,7 +116,7 @@ export default function LearningDetailReport({ token }: { token: string }) {
       <SearchMultiSelect label="Learning Status" allLabel="All statuses" options={[{ value: "not_started", label: "Not Started" }, { value: "in_progress", label: "In Progress" }, { value: "completed", label: "Completed / Certified" }]} selected={filters.status} onChange={value => setMultiFilter("status", value)} />
     </div></section>
     <section className="learning-report-table"><header><div><small>EMPLOYEE DATA</small><h2>Learning Management details</h2></div><div className="learning-table-actions"><span>{filtered.length.toLocaleString()} records</span><ExportActions label="Learning Management details" onExport={format => exportData(format, "Learning Management details", detailHeaders, detailRows)} /></div></header><div className="learning-table-scroll"><table><thead><tr><th>Employee ID</th><th>Employee</th><th>Department</th><th>Organization</th><th>Project Location</th><th>Position</th><th>Course</th><th>Date</th><th>Progress</th><th>Final Attempts</th><th>Best Score</th><th>Status</th></tr></thead><tbody>{pageRows.map(row => <tr key={`${row.employee_id}-${row.course_code}`}><td><b>{row.employee_no}</b></td><td>{row.employee_name}</td><td>{row.department ?? "—"}</td><td>{row.organization ?? "—"}</td><td>{row.project_location ?? "—"}</td><td>{row.position ?? "—"}</td><td><b>{row.course_title}</b><small>{row.course_code}</small></td><td>{formatCourseDate(row.course_date)}</td><td><div className="learning-progress"><span><i style={{ width: `${row.progress_percentage}%` }} /></span><b>{row.progress_percentage}%</b></div></td><td>{row.final_attempts}</td><td>{row.best_score === null ? "—" : `${row.best_score}%`}</td><td><span className={`learning-status ${row.learning_status}`}>{row.certificate_earned ? "Completed · Certified" : statusLabel(row.learning_status)}</span></td></tr>)}</tbody></table></div>
-      {loading && <div className="learning-report-state">Loading learning report…</div>}{!loading && error && <div className="learning-report-state error">{error}</div>}{!loading && !error && !filtered.length && <div className="learning-report-state">No learning records match the selected filters.</div>}
+      {loading && <div className="learning-report-state">Loading learning report…</div>}{!loading && error && <div className="learning-report-state error"><span>{error}</span><button type="button" onClick={() => setReloadKey(value => value + 1)}>Retry</button></div>}{!loading && !error && !filtered.length && <div className="learning-report-state">No learning records match the selected filters.</div>}
       {!loading && !error && filtered.length > 0 && <footer className="learning-pagination"><span>Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length.toLocaleString()}</span><div className="learning-pagination-controls"><label>Rows<select aria-label="Rows per page" value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); setPage(1); }}>{PAGE_SIZES.map(size => <option key={size}>{size}</option>)}</select></label><nav aria-label="Report pages"><button disabled={currentPage === 1} onClick={() => setPage(value => Math.max(1, value - 1))}>Prev</button>{visiblePages.map(number => <button key={number} className={number === currentPage ? "active" : ""} onClick={() => setPage(number)}>{number}</button>)}<button disabled={currentPage === pageCount} onClick={() => setPage(value => Math.min(pageCount, value + 1))}>Next</button></nav></div></footer>}
     </section>
   </div>;

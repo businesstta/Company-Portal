@@ -74,3 +74,5 @@
   .learning-status { justify-content: center; max-width: 100%; box-sizing: border-box; padding-right: 5px; padding-left: 5px; text-align: center; white-space: normal; }
 }
 @media (max-width: 1200px) { .learning-report-table table { min-width: 1350px; } }
+.learning-report-state.error { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.learning-report-state.error button { min-height: 31px; padding: 0 12px; border: 1px solid #d8deea; border-radius: 7px; background: #fff; color: #5745d0; font-size: 10px; font-weight: 750; cursor: pointer; }

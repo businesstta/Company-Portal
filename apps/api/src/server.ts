@@ -899,22 +899,40 @@ app.get('/api/reports/summary', auth, asyncRoute(async (_req,res) => {
 app.get('/api/reports/learning-detail',auth,permit('Reports'),asyncRoute(async(req,res)=>{
   const company=(await db.query('SELECT company_id FROM employees WHERE id=$1',[req.user!.employeeId])).rows[0]
   if(!company)return res.status(404).json({error:'Employee company was not found'})
-  const result=await db.query(`SELECT e.id employee_id,e.employee_no,trim(e.first_name||' '||e.last_name) employee_name,d.name department,e.organization,e.project_location,e.position,
-    c.course_code,c.title course_title,c.course_date,c.status course_status,COALESCE(content.total_contents,0)::int total_contents,
-    COALESCE(progress.completed_contents,0)::int completed_contents,
-    CASE WHEN COALESCE(content.total_contents,0)=0 THEN 0 ELSE round(COALESCE(progress.completed_contents,0)::numeric/content.total_contents*100)::int END progress_percentage,
-    COALESCE(assessment.final_attempts,0)::int final_attempts,assessment.best_score,(cert.id IS NOT NULL) certificate_earned,
-    CASE WHEN cert.id IS NOT NULL THEN 'completed'
-      WHEN COALESCE(progress.completed_contents,0)>0 OR COALESCE(assessment.final_attempts,0)>0 THEN 'in_progress' ELSE 'not_started' END learning_status
+  const result=await db.query(`WITH company_courses AS (
+      SELECT * FROM learning_courses WHERE company_id=$1 AND status<>'archived'
+    ), content_totals AS (
+      SELECT m.course_id,COUNT(lc.id)::int total_contents
+      FROM company_courses c JOIN learning_modules m ON m.course_id=c.id JOIN learning_module_contents lc ON lc.module_id=m.id
+      GROUP BY m.course_id
+    ), progress_totals AS (
+      SELECT cp.employee_id,m.course_id,COUNT(*)::int completed_contents
+      FROM company_courses c JOIN learning_modules m ON m.course_id=c.id JOIN learning_module_contents lc ON lc.module_id=m.id
+      JOIN learning_content_progress cp ON cp.content_id=lc.id GROUP BY cp.employee_id,m.course_id
+    ), assessment_totals AS (
+      SELECT a.employee_id,a.course_id,COUNT(*)::int final_attempts,MAX(a.score)::numeric best_score
+      FROM learning_assessment_attempts a JOIN company_courses c ON c.id=a.course_id
+      WHERE a.assessment_type='final' GROUP BY a.employee_id,a.course_id
+    ), valid_certificates AS (
+      SELECT cert.employee_id,cert.course_id FROM learning_certificates cert JOIN company_courses c ON c.id=cert.course_id
+      WHERE cert.status='valid'
+    )
+    SELECT e.id employee_id,e.employee_no,trim(e.first_name||' '||e.last_name) employee_name,d.name department,e.organization,e.project_location,e.position,
+      c.course_code,c.title course_title,c.course_date,c.status course_status,COALESCE(content.total_contents,0)::int total_contents,
+      COALESCE(progress.completed_contents,0)::int completed_contents,
+      CASE WHEN COALESCE(content.total_contents,0)=0 THEN 0 ELSE round(COALESCE(progress.completed_contents,0)::numeric/content.total_contents*100)::int END progress_percentage,
+      COALESCE(assessment.final_attempts,0)::int final_attempts,assessment.best_score,(cert.course_id IS NOT NULL) certificate_earned,
+      CASE WHEN cert.course_id IS NOT NULL THEN 'completed'
+        WHEN COALESCE(progress.completed_contents,0)>0 OR COALESCE(assessment.final_attempts,0)>0 THEN 'in_progress' ELSE 'not_started' END learning_status
     FROM employees e LEFT JOIN departments d ON d.id=e.department_id
-    JOIN learning_courses c ON c.company_id=e.company_id AND c.status<>'archived' AND (
+    JOIN company_courses c ON (
       EXISTS(SELECT 1 FROM learning_course_audience_types cat WHERE cat.course_id=c.id AND cat.audience_type='all_employees') OR
       EXISTS(SELECT 1 FROM learning_course_employee_targets cet WHERE cet.course_id=c.id AND cet.employee_id=e.id) OR
       EXISTS(SELECT 1 FROM learning_course_rank_targets crt WHERE crt.course_id=c.id AND crt.job_level_id=e.job_level_id))
-    LEFT JOIN LATERAL(SELECT COUNT(lc.id)::int total_contents FROM learning_modules m JOIN learning_module_contents lc ON lc.module_id=m.id WHERE m.course_id=c.id) content ON true
-    LEFT JOIN LATERAL(SELECT COUNT(DISTINCT cp.content_id)::int completed_contents FROM learning_content_progress cp JOIN learning_module_contents lc ON lc.id=cp.content_id JOIN learning_modules m ON m.id=lc.module_id WHERE cp.employee_id=e.id AND m.course_id=c.id) progress ON true
-    LEFT JOIN LATERAL(SELECT COUNT(*)::int final_attempts,MAX(a.score)::numeric best_score FROM learning_assessment_attempts a WHERE a.employee_id=e.id AND a.course_id=c.id AND a.assessment_type='final') assessment ON true
-    LEFT JOIN learning_certificates cert ON cert.employee_id=e.id AND cert.course_id=c.id AND cert.status='valid'
+    LEFT JOIN content_totals content ON content.course_id=c.id
+    LEFT JOIN progress_totals progress ON progress.employee_id=e.id AND progress.course_id=c.id
+    LEFT JOIN assessment_totals assessment ON assessment.employee_id=e.id AND assessment.course_id=c.id
+    LEFT JOIN valid_certificates cert ON cert.employee_id=e.id AND cert.course_id=c.id
     WHERE e.company_id=$1 AND e.employment_status='active' ORDER BY e.employee_no,c.course_code`,[company.company_id])
   res.json(result.rows)
 }))
