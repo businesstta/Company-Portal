@@ -10,7 +10,7 @@ const dashboard = {
   attendance: { present: 900, absent: 100, leave: 33 }, departments: [], recentRequests: [],
 };
 
-export async function mockPortalApi(page: Page) {
+export async function mockPortalApi(page: Page, options: { trendStatus?: number } = {}) {
   await page.addInitScript(() => localStorage.setItem("portal_token", "e2e-token"));
   await page.route("**/api/**", async (route: Route) => {
     const path = new URL(route.request().url()).pathname;
@@ -21,6 +21,7 @@ export async function mockPortalApi(page: Page) {
     else if (path.endsWith("/notifications/unread-count")) body = { count: 0 };
     else if (path.endsWith("/branding")) body = { iconText: "CP", title: "Company Portal", subtitle: "People & Operations", iconColor: "#6d5ce7" };
     else if (path.endsWith("/reports/learning-detail")) body = learningRows;
+    else if (path.endsWith("/reports/learning-trend") && options.trendStatus && options.trendStatus >= 400) return route.fulfill({ status: options.trendStatus, contentType: "application/json", body: JSON.stringify({ error: "Trend unavailable" }) });
     else if (path.endsWith("/reports/learning-trend")) body = [
       { month_key: "2026-07", month_label: "Jul", content_completions: 1, assessment_attempts: 0, certificates: 0 },
       { month_key: "2026-08", month_label: "Aug", content_completions: 3, assessment_attempts: 1, certificates: 0 },

@@ -923,13 +923,26 @@ app.get('/api/reports/learning-trend',auth,permit('Reports'),asyncRoute(async(re
   const company=(await db.query('SELECT company_id FROM employees WHERE id=$1',[req.user!.employeeId])).rows[0]
   if(!company)return res.status(404).json({error:'Employee company was not found'})
   const result=await db.query(`WITH months AS (
-      SELECT generate_series(date_trunc('month',CURRENT_DATE)-interval '11 months',date_trunc('month',CURRENT_DATE),interval '1 month') month
+      SELECT generate_series(date_trunc('month',CURRENT_DATE)-interval '11 months',date_trunc('month',CURRENT_DATE),interval '1 month') month_start
+    ), content_activity AS (
+      SELECT date_trunc('month',cp.completed_at) month_start,COUNT(*)::int total
+      FROM learning_content_progress cp JOIN employees e ON e.id=cp.employee_id
+      WHERE e.company_id=$1 AND cp.completed_at>=date_trunc('month',CURRENT_DATE)-interval '11 months' GROUP BY 1
+    ), assessment_activity AS (
+      SELECT date_trunc('month',a.submitted_at) month_start,COUNT(*)::int total
+      FROM learning_assessment_attempts a JOIN employees e ON e.id=a.employee_id
+      WHERE e.company_id=$1 AND a.submitted_at>=date_trunc('month',CURRENT_DATE)-interval '11 months' GROUP BY 1
+    ), certificate_activity AS (
+      SELECT date_trunc('month',cert.issued_at) month_start,COUNT(*)::int total
+      FROM learning_certificates cert JOIN employees e ON e.id=cert.employee_id
+      WHERE e.company_id=$1 AND cert.issued_at>=date_trunc('month',CURRENT_DATE)-interval '11 months' GROUP BY 1
     )
-    SELECT to_char(month,'YYYY-MM') month_key,to_char(month,'Mon') month_label,
-      (SELECT COUNT(*)::int FROM learning_content_progress cp JOIN employees e ON e.id=cp.employee_id WHERE e.company_id=$1 AND cp.completed_at>=month AND cp.completed_at<month+interval '1 month') content_completions,
-      (SELECT COUNT(*)::int FROM learning_assessment_attempts a JOIN employees e ON e.id=a.employee_id WHERE e.company_id=$1 AND a.submitted_at>=month AND a.submitted_at<month+interval '1 month') assessment_attempts,
-      (SELECT COUNT(*)::int FROM learning_certificates cert JOIN employees e ON e.id=cert.employee_id WHERE e.company_id=$1 AND cert.issued_at>=month AND cert.issued_at<month+interval '1 month') certificates
-    FROM months ORDER BY month`,[company.company_id])
+    SELECT to_char(months.month_start,'YYYY-MM') month_key,to_char(months.month_start,'Mon') month_label,
+      COALESCE(content_activity.total,0)::int content_completions,
+      COALESCE(assessment_activity.total,0)::int assessment_attempts,
+      COALESCE(certificate_activity.total,0)::int certificates
+    FROM months LEFT JOIN content_activity USING(month_start) LEFT JOIN assessment_activity USING(month_start) LEFT JOIN certificate_activity USING(month_start)
+    ORDER BY months.month_start`,[company.company_id])
   res.json(result.rows)
 }))
 

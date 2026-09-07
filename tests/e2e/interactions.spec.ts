@@ -71,3 +71,12 @@ test("learning chart report renders verified charts and exports each format", as
   expect(pdfPath).not.toBeNull();
   expect((await readFile(pdfPath!)).subarray(0, 5).toString()).toBe("%PDF-");
 });
+
+test("learning chart report keeps verified charts visible when the trend request fails", async ({ page }) => {
+  await mockPortalApi(page, { trendStatus: 500 });
+  await page.goto("/reports/landd-chart-report");
+  await expect(page.locator(".chart-report-card")).toHaveCount(7);
+  await expect(page.getByRole("heading", { name: "Overall learning progress" })).toBeVisible();
+  await expect(page.getByText("Monthly activity is temporarily unavailable.")).toBeVisible();
+  await expect(page.getByTitle("Export Learning activity trend to Excel")).toBeDisabled();
+});

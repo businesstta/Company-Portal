@@ -17,13 +17,18 @@ type TrendPoint = { month_key: string; month_label: string; content_completions:
 const average = (values: number[]) => values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
 
 export default function LearningChartReport({ token }: { token: string }) {
-  const [rows, setRows] = useState<LearningRow[]>([]), [trend, setTrend] = useState<TrendPoint[]>([]), [loading, setLoading] = useState(true), [error, setError] = useState("");
+  const [rows, setRows] = useState<LearningRow[]>([]), [trend, setTrend] = useState<TrendPoint[]>([]), [loading, setLoading] = useState(true), [error, setError] = useState(""), [trendError, setTrendError] = useState("");
   useEffect(() => {
-    const controller = new AbortController(); setLoading(true); setError("");
+    const controller = new AbortController(); setLoading(true); setError(""); setTrendError("");
     const options = { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal };
-    Promise.all([fetch(`${API}/reports/learning-detail`, options), fetch(`${API}/reports/learning-trend`, options)])
-      .then(async responses => { if (responses.some(response => !response.ok)) throw new Error("Unable to load learning chart data"); return Promise.all(responses.map(response => response.json())); })
-      .then(([detailData, trendData]) => { setRows(Array.isArray(detailData) ? detailData : []); setTrend(Array.isArray(trendData) ? trendData : []); })
+    const fetchReport = async (path: string) => { const response = await fetch(`${API}${path}`, options); if (!response.ok) throw new Error(`Report request failed (${response.status})`); return response.json(); };
+    Promise.allSettled([fetchReport("/reports/learning-detail"), fetchReport("/reports/learning-trend")])
+      .then(([detailResult, trendResult]) => {
+        if (detailResult.status === "rejected") throw detailResult.reason;
+        setRows(Array.isArray(detailResult.value) ? detailResult.value : []);
+        if (trendResult.status === "fulfilled") setTrend(Array.isArray(trendResult.value) ? trendResult.value : []);
+        else { setTrend([]); setTrendError("Monthly activity is temporarily unavailable."); }
+      })
       .catch(reason => { if (!(reason instanceof DOMException && reason.name === "AbortError")) setError(reason instanceof Error ? reason.message : "Unable to load learning chart data"); })
       .finally(() => setLoading(false));
     return () => controller.abort();
@@ -79,8 +84,8 @@ export default function LearningChartReport({ token }: { token: string }) {
       <ReportCard eyebrow="ASSESSMENT" title="Assessment score distribution" summary={`${average(scored)}% average`} note={`${scored.length.toLocaleString()} assignments with a recorded best score`} onExport={format => exportData(format, "Assessment score distribution", ["Score Range", "Assignments"], scoreBuckets.map(item => [item.name, item.value]))}>
         <Histogram items={scoreBuckets} />
       </ReportCard>
-      <ReportCard eyebrow="12-MONTH TREND" title="Learning activity trend" summary={`${trend.reduce((sum, point) => sum + Number(point.content_completions), 0).toLocaleString()} completions`} note="Actual monthly content completions, assessment attempts and certificates" onExport={format => exportData(format, "Learning activity trend", ["Month", "Content Completions", "Assessment Attempts", "Certificates"], trend.map(point => [point.month_key, point.content_completions, point.assessment_attempts, point.certificates]))}>
-        <LineTrend points={trend} />
+      <ReportCard eyebrow="12-MONTH TREND" title="Learning activity trend" summary={trendError ? "Unavailable" : `${trend.reduce((sum, point) => sum + Number(point.content_completions), 0).toLocaleString()} completions`} note={trendError || "Actual monthly content completions, assessment attempts and certificates"} exportDisabled={Boolean(trendError)} onExport={format => exportData(format, "Learning activity trend", ["Month", "Content Completions", "Assessment Attempts", "Certificates"], trend.map(point => [point.month_key, point.content_completions, point.assessment_attempts, point.certificates]))}>
+        {trendError ? <div className="trend-unavailable">The other verified learning charts are still available while monthly activity reloads.</div> : <LineTrend points={trend} />}
       </ReportCard>
     </section>}
   </div>;
@@ -92,8 +97,8 @@ function groupAverage(rows: LearningRow[], key: "department" | "organization"): 
   return [...groups.entries()].map(([name, values]) => ({ name, value: average(values), count: values.length })).sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
 }
 
-function ReportCard({ eyebrow, title, summary, note, children, onExport }: { eyebrow: string; title: string; summary: string; note: string; children: ReactNode; onExport: (format: "excel" | "pdf") => void }) {
-  return <article className="chart-report-card"><header><div><small>{eyebrow}</small><h2>{title}</h2></div><div><b>{summary}</b><span><button type="button" title={`Export ${title} to Excel`} onClick={() => onExport("excel")}>Excel</button><button type="button" title={`Export ${title} to PDF`} onClick={() => onExport("pdf")}>PDF</button></span></div></header><div className="chart-report-visual">{children}</div><footer>{note}</footer></article>;
+function ReportCard({ eyebrow, title, summary, note, children, onExport, exportDisabled = false }: { eyebrow: string; title: string; summary: string; note: string; children: ReactNode; onExport: (format: "excel" | "pdf") => void; exportDisabled?: boolean }) {
+  return <article className="chart-report-card"><header><div><small>{eyebrow}</small><h2>{title}</h2></div><div><b>{summary}</b><span><button type="button" title={`Export ${title} to Excel`} disabled={exportDisabled} onClick={() => onExport("excel")}>Excel</button><button type="button" title={`Export ${title} to PDF`} disabled={exportDisabled} onClick={() => onExport("pdf")}>PDF</button></span></div></header><div className="chart-report-visual">{children}</div><footer>{note}</footer></article>;
 }
 
 function DonutChart({ items, total }: { items: { name: string; value: number; color: string }[]; total: number }) {
