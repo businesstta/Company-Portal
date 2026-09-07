@@ -20,6 +20,13 @@ test("learning report filters update data and clear correctly", async ({ page })
   await mockPortalApi(page);
   await page.goto("/reports/landd-detail-report");
   await expect(page.getByText("2 records")).toBeVisible();
+  const summary = page.locator(".learning-count-grid");
+  await expect(summary.getByText("Total Course Assignments", { exact: true })).toBeVisible();
+  await expect(summary.getByText("Number of Courses Assigned to All Employees", { exact: true })).toBeVisible();
+  await expect(summary.getByText("Number of Courses Assigned to Each Department", { exact: true })).toBeVisible();
+  await expect(summary.getByText("Number of Courses Assigned to Each Project Location", { exact: true })).toBeVisible();
+  await expect(summary.locator("article").nth(1).locator("b")).toHaveText("2");
+  await expect(summary.locator("article").nth(2).locator("b")).toHaveText("2");
   await page.getByRole("button", { name: "Department", exact: true }).click();
   await page.getByLabel("Search Department").fill("Information");
   await page.getByRole("listbox", { name: "Department options" }).getByText("Information Technology", { exact: true }).click();

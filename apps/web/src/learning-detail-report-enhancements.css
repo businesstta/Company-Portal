@@ -45,3 +45,9 @@
 .employee-bar-chart span, .employee-bar-chart small, .learning-pie-legend span, .organization-bars span, .organization-bars strong { font-size: 9px; font-weight: 700; }
 .learning-pie-legend span, .organization-bars span { color: #39495f; }
 @media (max-width: 650px) { .learning-table-actions { align-items: flex-end; flex-direction: column; } }
+
+.learning-count-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }
+.learning-count-grid article { min-height: 82px; box-sizing: border-box; }
+.learning-count-grid small { line-height: 1.35; }
+@media (max-width: 1200px) { .learning-count-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 650px) { .learning-count-grid { grid-template-columns: 1fr; } }

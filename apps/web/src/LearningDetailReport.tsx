@@ -68,7 +68,17 @@ export default function LearningDetailReport({ token }: { token: string }) {
   const scored = filtered.filter(row => row.best_score !== null);
   const averageScore = scored.length ? Math.round(scored.reduce((sum, row) => sum + Number(row.best_score), 0) / scored.length) : 0;
   const passed = scored.filter(row => Number(row.best_score) >= 80).length;
-  const counts: [string, number][] = [["Employees", employeeProgress.length], ["Course Assignments", filtered.length], ["Completed", completed], ["In Progress", inProgress], ["Not Started", notStarted]];
+  const totalCourses = new Set(filtered.map(row => row.course_code)).size;
+  const departmentCourseAssignments = new Set(filtered.filter(row => row.department).map(row => `${row.course_code}\u0000${row.department}`)).size;
+  const projectLocationCourseAssignments = new Set(filtered.filter(row => row.project_location).map(row => `${row.course_code}\u0000${row.project_location}`)).size;
+  const counts: [string, number][] = [
+    ["Employees", employeeProgress.length],
+    ["Total Course Assignments", totalCourses],
+    ["Number of Courses Assigned to All Employees", filtered.length],
+    ["Number of Courses Assigned to Each Department", departmentCourseAssignments],
+    ["Number of Courses Assigned to Each Project Location", projectLocationCourseAssignments],
+    ["Completed", completed], ["In Progress", inProgress], ["Not Started", notStarted],
+  ];
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const pageRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
