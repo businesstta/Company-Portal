@@ -54,7 +54,11 @@ test("learning report filters update data and clear correctly", async ({ page })
   expect((await readFile(workbookPath!)).subarray(0, 4).toString("binary")).toBe("PK\u0003\u0004");
   const pdfDownload = page.waitForEvent("download");
   await page.getByTitle("Export Assessment performance to PDF").click();
-  await expect((await pdfDownload).suggestedFilename()).toMatch(/assessment-performance-.*\.pdf$/);
+  const assessmentPdf = await pdfDownload;
+  await expect(assessmentPdf.suggestedFilename()).toMatch(/assessment-performance-.*\.pdf$/);
+  const assessmentPdfPath = await assessmentPdf.path();
+  expect(assessmentPdfPath).not.toBeNull();
+  expect((await readFile(assessmentPdfPath!, "latin1")).toString()).toContain("501.00 Td (Learning Management reporting export)");
 });
 
 test("create course defaults its date to today", async ({ page }) => {
@@ -91,7 +95,9 @@ test("learning chart report renders verified charts and exports each format", as
   await expect(pdf.suggestedFilename()).toMatch(/assessment-score-distribution-.*\.pdf$/);
   const pdfPath = await pdf.path();
   expect(pdfPath).not.toBeNull();
-  expect((await readFile(pdfPath!)).subarray(0, 5).toString()).toBe("%PDF-");
+  const pdfContents = await readFile(pdfPath!);
+  expect(pdfContents.subarray(0, 5).toString()).toBe("%PDF-");
+  expect(pdfContents.toString("latin1")).toContain("501.00 Td (Learning Management reporting export)");
 });
 
 test("learning chart report keeps verified charts visible when the trend request fails", async ({ page }) => {
