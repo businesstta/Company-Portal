@@ -51,3 +51,26 @@
 .learning-count-grid small { line-height: 1.35; }
 @media (max-width: 1200px) { .learning-count-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width: 650px) { .learning-count-grid { grid-template-columns: 1fr; } }
+
+@media (min-width: 1201px) {
+  .learning-table-scroll { scrollbar-gutter: auto; }
+  .learning-report-table table { min-width: 100%; table-layout: fixed; }
+  .learning-report-table th, .learning-report-table td { box-sizing: border-box; padding-right: 8px; padding-left: 8px; overflow-wrap: anywhere; }
+  .learning-report-table th:nth-child(1) { width: 8%; }
+  .learning-report-table th:nth-child(2) { width: 10%; }
+  .learning-report-table th:nth-child(3) { width: 9%; }
+  .learning-report-table th:nth-child(4) { width: 8%; }
+  .learning-report-table th:nth-child(5) { width: 8%; }
+  .learning-report-table th:nth-child(6) { width: 9%; }
+  .learning-report-table th:nth-child(7) { width: 12%; }
+  .learning-report-table th:nth-child(8) { width: 7%; }
+  .learning-report-table th:nth-child(9) { width: 9%; }
+  .learning-report-table th:nth-child(10) { width: 6%; }
+  .learning-report-table th:nth-child(11) { width: 6%; }
+  .learning-report-table th:nth-child(12) { width: 8%; }
+  .learning-report-table td:nth-child(1), .learning-report-table td:nth-child(8) { white-space: nowrap; }
+  .learning-progress { gap: 5px; }
+  .learning-progress > span { width: min(72px,calc(100% - 30px)); min-width: 0; }
+  .learning-status { justify-content: center; max-width: 100%; box-sizing: border-box; padding-right: 5px; padding-left: 5px; text-align: center; white-space: normal; }
+}
+@media (max-width: 1200px) { .learning-report-table table { min-width: 1350px; } }

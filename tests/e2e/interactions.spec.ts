@@ -20,6 +20,10 @@ test("learning report filters update data and clear correctly", async ({ page })
   await mockPortalApi(page);
   await page.goto("/reports/landd-detail-report");
   await expect(page.getByText("2 records")).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Date", exact: true })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "01/09/2026", exact: true })).toBeVisible();
+  const tableOverflow = await page.locator(".learning-table-scroll").evaluate(element => ({ clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }));
+  expect(tableOverflow.scrollWidth).toBeLessThanOrEqual(tableOverflow.clientWidth + 1);
   const summary = page.locator(".learning-count-grid");
   await expect(summary.getByText("Total Course Assignments", { exact: true })).toBeVisible();
   await expect(summary.getByText("Number of Courses Assigned to All Employees", { exact: true })).toBeVisible();
@@ -51,6 +55,17 @@ test("learning report filters update data and clear correctly", async ({ page })
   const pdfDownload = page.waitForEvent("download");
   await page.getByTitle("Export Assessment performance to PDF").click();
   await expect((await pdfDownload).suggestedFilename()).toMatch(/assessment-performance-.*\.pdf$/);
+});
+
+test("create course defaults its date to today", async ({ page }) => {
+  await mockPortalApi(page);
+  await page.goto("/hr/learning-management");
+  await page.getByRole("button", { name: /New Course/ }).click();
+  const expectedToday = await page.evaluate(() => {
+    const date = new Date(), offset = date.getTimezoneOffset() * 60_000;
+    return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+  });
+  await expect(page.locator('input[name="courseDate"]')).toHaveValue(expectedToday);
 });
 
 test("learning chart report renders verified charts and exports each format", async ({ page }) => {
