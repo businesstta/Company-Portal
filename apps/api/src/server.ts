@@ -919,6 +919,20 @@ app.get('/api/reports/learning-detail',auth,permit('Reports'),asyncRoute(async(r
   res.json(result.rows)
 }))
 
+app.get('/api/reports/learning-trend',auth,permit('Reports'),asyncRoute(async(req,res)=>{
+  const company=(await db.query('SELECT company_id FROM employees WHERE id=$1',[req.user!.employeeId])).rows[0]
+  if(!company)return res.status(404).json({error:'Employee company was not found'})
+  const result=await db.query(`WITH months AS (
+      SELECT generate_series(date_trunc('month',CURRENT_DATE)-interval '11 months',date_trunc('month',CURRENT_DATE),interval '1 month') month
+    )
+    SELECT to_char(month,'YYYY-MM') month_key,to_char(month,'Mon') month_label,
+      (SELECT COUNT(*)::int FROM learning_content_progress cp JOIN employees e ON e.id=cp.employee_id WHERE e.company_id=$1 AND cp.completed_at>=month AND cp.completed_at<month+interval '1 month') content_completions,
+      (SELECT COUNT(*)::int FROM learning_assessment_attempts a JOIN employees e ON e.id=a.employee_id WHERE e.company_id=$1 AND a.submitted_at>=month AND a.submitted_at<month+interval '1 month') assessment_attempts,
+      (SELECT COUNT(*)::int FROM learning_certificates cert JOIN employees e ON e.id=cert.employee_id WHERE e.company_id=$1 AND cert.issued_at>=month AND cert.issued_at<month+interval '1 month') certificates
+    FROM months ORDER BY month`,[company.company_id])
+  res.json(result.rows)
+}))
+
 const learningExportInput=z.object({title:z.string().trim().min(1).max(120),headers:z.array(z.string().max(120)).min(1).max(30),rows:z.array(z.array(z.union([z.string().max(5000),z.number(),z.null()])).max(30)).max(25000)})
 app.post('/api/reports/learning-export',auth,permit('Reports'),asyncRoute(async(req,res)=>{
   const input=learningExportInput.parse(req.body),workbook=new ExcelJS.Workbook();workbook.creator='Company Portal';workbook.created=new Date()
