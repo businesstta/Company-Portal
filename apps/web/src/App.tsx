@@ -16,6 +16,7 @@ import ITAssetManagement from "./ITAssetManagement";
 import LearningManagement from "./LearningManagement";
 import LearningSchedule from "./LearningSchedule";
 import LearningDetailReport from "./LearningDetailReport";
+import LearningChartReport from "./LearningChartReport";
 import "./select-design.css";
 import "./theme.css";
 
@@ -66,6 +67,7 @@ const reportGroups = [
       "Appraisals Report",
       "Travelling Request Report",
       "L&D Detail Report",
+      "L&D Chart Report",
     ],
   },
   {
@@ -2022,6 +2024,7 @@ function DataPage({
   if (page === "Learning Management") return <LearningManagement token={token} role={role} />;
   if (page === "L&D Schedule") return <LearningSchedule token={token} role={role} />;
   if (page === "L&D Detail Report") return <LearningDetailReport token={token} />;
+  if (page === "L&D Chart Report") return <LearningChartReport token={token} />;
   if (!endpoint)
     return (
       <div className="empty-page">
@@ -4062,6 +4065,7 @@ function App() {
     "Appraisals Report": "အကဲဖြတ်မှု အစီရင်ခံစာ",
     "Travelling Request Report": "ခရီးသွားတောင်းခံမှု အစီရင်ခံစာ",
     "L&D Detail Report": "သင်ယူရေး အသေးစိတ်အစီရင်ခံစာ",
+    "L&D Chart Report": "သင်ယူရေး ဇယားအစီရင်ခံစာ",
     "Admin Asset Report": "စီမံရေးပစ္စည်း အစီရင်ခံစာ",
     "IT Asset Report": "အိုင်တီပစ္စည်း အစီရင်ခံစာ",
     "Payment Request Report": "ငွေပေးချေမှု တောင်းခံမှုအစီရင်ခံစာ",
@@ -4360,7 +4364,7 @@ function App() {
   const can = (menu: string) =>
     allowedMenus.includes("*") || allowedMenus.includes(menu);
   const canViewReport = (report: string, group?: string) =>
-    can(report) || (report === "L&D Detail Report" && group === "HR Management" && (can("Reports") || can("HR Management")));
+    can(report) || (["L&D Detail Report", "L&D Chart Report"].includes(report) && group === "HR Management" && (can("Reports") || can("HR Management")));
   const hasApprovalAccess =
     currentRole === "employee" ? isWorkflowApprover : can("Approvals");
   const visibleNav = nav.filter((item) =>

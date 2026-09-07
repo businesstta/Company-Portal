@@ -45,3 +45,28 @@ test("learning report filters update data and clear correctly", async ({ page })
   await page.getByTitle("Export Assessment performance to PDF").click();
   await expect((await pdfDownload).suggestedFilename()).toMatch(/assessment-performance-.*\.pdf$/);
 });
+
+test("learning chart report renders six verified charts and exports each format", async ({ page }) => {
+  await mockPortalApi(page);
+  await page.goto("/overview");
+  await page.getByRole("button", { name: /^Reports/ }).click();
+  await page.getByRole("button", { name: /^HR Management/ }).click();
+  await page.getByRole("button", { name: "L&D Chart Report", exact: true }).click();
+  await expect(page).toHaveURL(/\/reports\/landd-chart-report$/);
+  await expect(page.getByRole("heading", { name: "L&D Chart Report" })).toBeVisible();
+  await expect(page.locator(".chart-report-card")).toHaveCount(6);
+  await expect(page.locator(".chart-report-title aside b")).toHaveText("2");
+  await expect(page.locator(".chart-report-title aside small")).toHaveText("Course assignments");
+  await expect(page.getByRole("heading", { name: "Overall learning progress" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Assignment status mix" })).toBeVisible();
+  const excelDownload = page.waitForEvent("download");
+  await page.getByTitle("Export Average progress by course to Excel").click();
+  await expect((await excelDownload).suggestedFilename()).toMatch(/average-progress-by-course-.*\.xlsx$/);
+  const pdfDownload = page.waitForEvent("download");
+  await page.getByTitle("Export Assessment score distribution to PDF").click();
+  const pdf = await pdfDownload;
+  await expect(pdf.suggestedFilename()).toMatch(/assessment-score-distribution-.*\.pdf$/);
+  const pdfPath = await pdf.path();
+  expect(pdfPath).not.toBeNull();
+  expect((await readFile(pdfPath!)).subarray(0, 5).toString()).toBe("%PDF-");
+});
