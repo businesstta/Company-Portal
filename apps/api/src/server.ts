@@ -910,18 +910,26 @@ app.get('/api/reports/learning-detail',auth,permit('Reports'),asyncRoute(async(r
       FROM company_courses c JOIN learning_modules m ON m.course_id=c.id JOIN learning_module_contents lc ON lc.module_id=m.id
       JOIN learning_content_progress cp ON cp.content_id=lc.id GROUP BY cp.employee_id,m.course_id
     ), assessment_totals AS (
-      SELECT a.employee_id,a.course_id,COUNT(*)::int final_attempts,MAX(a.score)::numeric best_score
+      SELECT a.employee_id,a.course_id,
+        COUNT(*) FILTER(WHERE a.assessment_type='final')::int final_attempts,
+        MAX(a.score) FILTER(WHERE a.assessment_type='final')::numeric best_score,
+        MAX(a.score) FILTER(WHERE a.assessment_type='pre_test')::numeric test_score,
+        BOOL_OR(a.passed) FILTER(WHERE a.assessment_type='pre_test') test_passed,
+        COALESCE(jsonb_agg(jsonb_build_object('attempt_no',a.attempt_no,'score',a.score,'passed',a.passed,'submitted_at',a.submitted_at) ORDER BY a.attempt_no)
+          FILTER(WHERE a.assessment_type='final'),'[]'::jsonb) final_attempt_history
       FROM learning_assessment_attempts a JOIN company_courses c ON c.id=a.course_id
-      WHERE a.assessment_type='final' GROUP BY a.employee_id,a.course_id
+      GROUP BY a.employee_id,a.course_id
     ), valid_certificates AS (
-      SELECT cert.employee_id,cert.course_id FROM learning_certificates cert JOIN company_courses c ON c.id=cert.course_id
+      SELECT cert.employee_id,cert.course_id,cert.score FROM learning_certificates cert JOIN company_courses c ON c.id=cert.course_id
       WHERE cert.status='valid'
     )
     SELECT e.id employee_id,e.employee_no,trim(e.first_name||' '||e.last_name) employee_name,d.name department,e.organization,e.project_location,e.position,
       c.course_code,c.title course_title,c.course_date,c.status course_status,COALESCE(content.total_contents,0)::int total_contents,
       COALESCE(progress.completed_contents,0)::int completed_contents,
       CASE WHEN COALESCE(content.total_contents,0)=0 THEN 0 ELSE round(COALESCE(progress.completed_contents,0)::numeric/content.total_contents*100)::int END progress_percentage,
-      COALESCE(assessment.final_attempts,0)::int final_attempts,assessment.best_score,(cert.course_id IS NOT NULL) certificate_earned,
+      assessment.test_score,assessment.test_passed,COALESCE(assessment.final_attempts,0)::int final_attempts,
+      COALESCE(assessment.final_attempt_history,'[]'::jsonb) final_attempt_history,assessment.best_score,cert.score final_pass_score,
+      (cert.course_id IS NOT NULL) certificate_earned,
       CASE WHEN cert.course_id IS NOT NULL THEN 'completed'
         WHEN COALESCE(progress.completed_contents,0)>0 OR COALESCE(assessment.final_attempts,0)>0 THEN 'in_progress' ELSE 'not_started' END learning_status
     FROM employees e LEFT JOIN departments d ON d.id=e.department_id
@@ -965,15 +973,24 @@ app.get('/api/reports/learning-trend',auth,permit('Reports'),asyncRoute(async(re
 }))
 
 const learningExportInput=z.object({title:z.string().trim().min(1).max(120),headers:z.array(z.string().max(120)).min(1).max(30),rows:z.array(z.array(z.union([z.string().max(5000),z.number(),z.null()])).max(30)).max(25000)})
-app.post('/api/reports/learning-export',auth,permit('Reports'),asyncRoute(async(req,res)=>{
-  const input=learningExportInput.parse(req.body),workbook=new ExcelJS.Workbook();workbook.creator='Company Portal';workbook.created=new Date()
+const buildReportWorkbook=async(input:z.infer<typeof learningExportInput>)=>{
+  const workbook=new ExcelJS.Workbook();workbook.creator='Company Portal';workbook.created=new Date()
   const sheetName=input.title.replace(/[\\/*?:[\]]/g,' ').trim().slice(0,31)||'Learning Report'
   const sheet=workbook.addWorksheet(sheetName,{views:[{state:'frozen',ySplit:1}]})
   sheet.columns=input.headers.map((header,index)=>({header,key:`column_${index}`,width:Math.max(14,Math.min(38,Math.max(header.length+4,...input.rows.slice(0,500).map(row=>String(row[index]??'').length+2))))}))
   input.rows.forEach(row=>sheet.addRow(row));sheet.autoFilter=`A1:${sheet.getColumn(input.headers.length).letter}1`
   sheet.getRow(1).height=24;sheet.getRow(1).eachCell(cell=>{cell.font={bold:true,color:{argb:'FFFFFFFF'}};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF6554DC'}};cell.alignment={vertical:'middle'}})
   sheet.eachRow((row,rowNumber)=>{if(rowNumber>1&&rowNumber%2===0)row.eachCell(cell=>{cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF7F8FC'}}})})
-  const buffer=await workbook.xlsx.writeBuffer(),filename=input.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'learning-report'
+  const buffer=await workbook.xlsx.writeBuffer(),filename=input.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'report'
+  return {buffer,filename}
+}
+app.post('/api/reports/learning-export',auth,permit('Reports'),asyncRoute(async(req,res)=>{
+  const input=learningExportInput.parse(req.body),{buffer,filename}=await buildReportWorkbook(input)
+  res.setHeader('Content-Disposition',`attachment; filename="${filename}-${new Date().toISOString().slice(0,10)}.xlsx"`);res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').send(Buffer.from(buffer))
+}))
+app.post('/api/users/export',auth,asyncRoute(async(req,res)=>{
+  if(req.user!.role!=='admin')return res.status(403).json({error:'Admin access required'})
+  const input=learningExportInput.parse(req.body),{buffer,filename}=await buildReportWorkbook(input)
   res.setHeader('Content-Disposition',`attachment; filename="${filename}-${new Date().toISOString().slice(0,10)}.xlsx"`);res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').send(Buffer.from(buffer))
 }))
 

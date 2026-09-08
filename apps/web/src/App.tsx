@@ -17,6 +17,7 @@ import LearningManagement from "./LearningManagement";
 import LearningSchedule from "./LearningSchedule";
 import LearningDetailReport from "./LearningDetailReport";
 import LearningChartReport from "./LearningChartReport";
+import { exportExcel, exportPdf, type ExportCell } from "./learning-report-export";
 import "./select-design.css";
 import "./theme.css";
 
@@ -880,6 +881,7 @@ function DataPage({
   });
   const [userPage, setUserPage] = useState(1);
   const [userPageSize, setUserPageSize] = useState(25);
+  const [userExportBusy, setUserExportBusy] = useState<"excel" | "pdf" | "">("");
   const [roleOptions, setRoleOptions] = useState<RoleOption[]>(defaultRoleOptions);
   const [showCreateRole, setShowCreateRole] = useState(false);
   const [pendingRoleName, setPendingRoleName] = useState("");
@@ -1063,6 +1065,17 @@ function DataPage({
   const updateUserFilter = <K extends keyof UserFilters>(key: K, value: UserFilters[K]) => {
     setUserFilters((current) => ({ ...current, [key]: value }));
     setUserPage(1);
+  };
+  const exportFilteredUsers = async (format: "excel" | "pdf") => {
+    const headers = ["Employee ID", "Employee Name", "Position", "Department", "Organization", "Project Location", "Report To", "Role", "User Name", "Account Status", "Last Login"];
+    const value = (cell: unknown) => cell === null || cell === undefined || cell === "" ? "—" : String(cell);
+    const exportRows: ExportCell[][] = filteredUserRows.map((row) => [value(row.employee_no), `${String(row.first_name ?? "")} ${String(row.last_name ?? "")}`.trim() || "—", value(row.position), value(row.department), value(row.organization), value(row.project_location), value(row.report_to), roleLabel(row.role), value(row.username), row.is_active ? "Active" : "Inactive", row.last_login_at ? new Date(String(row.last_login_at)).toLocaleString("en-GB") : "Never"]);
+    setUserExportBusy(format);
+    try {
+      if (format === "excel") await exportExcel("Users and Roles", headers, exportRows, token, "/users/export");
+      else exportPdf("Users and Roles", headers, exportRows, "USERS & ROLES", "Filtered user access and role export");
+    } catch (reason) { window.alert(reason instanceof Error ? reason.message : `Unable to export ${format.toUpperCase()}`); }
+    finally { setUserExportBusy(""); }
   };
   const updatePaymentReportFilter = (patch: Partial<typeof paymentReportFilters>) => {
     setPaymentReportFilters((current) => ({ ...current, ...patch }));
@@ -3032,9 +3045,11 @@ function DataPage({
             <h1>{t("Users & Roles")}</h1>
             <span>Manage system access and permissions</span>
           </div>
-          <button type="button" className="primary create-role-button" onClick={() => setShowCreateRole(true)}>
-            + Create New User Role
-          </button>
+          <div className="users-title-actions">
+            <button type="button" className="users-export-button" title="Export filtered users to Excel" disabled={Boolean(userExportBusy)} onClick={() => void exportFilteredUsers("excel")}>{userExportBusy === "excel" ? "Preparing…" : "Excel"}</button>
+            <button type="button" className="users-export-button" title="Export filtered users to PDF" disabled={Boolean(userExportBusy)} onClick={() => void exportFilteredUsers("pdf")}>{userExportBusy === "pdf" ? "Preparing…" : "PDF"}</button>
+            <button type="button" className="primary create-role-button" onClick={() => setShowCreateRole(true)}>+ Create New User Role</button>
+          </div>
         </div>
         <section className="employee-filter-card users-filter-card">
           <div className="employee-filter-heading">

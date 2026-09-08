@@ -21,7 +21,12 @@ test("learning report filters update data and clear correctly", async ({ page })
   await page.goto("/reports/landd-detail-report");
   await expect(page.getByText("2 records")).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "Date", exact: true })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Test Score", exact: true })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Final Attempt Scores", exact: true })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Final Pass Score", exact: true })).toBeVisible();
   await expect(page.getByRole("cell", { name: "01/09/2026", exact: true })).toBeVisible();
+  await expect(page.getByText("#1 · 65%", { exact: true })).toBeVisible();
+  await expect(page.getByText("#2 · 86%", { exact: true })).toBeVisible();
   const tableOverflow = await page.locator(".learning-table-scroll").evaluate(element => ({ clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }));
   expect(tableOverflow.scrollWidth).toBeLessThanOrEqual(tableOverflow.clientWidth + 1);
   const summary = page.locator(".learning-count-grid");
@@ -59,6 +64,27 @@ test("learning report filters update data and clear correctly", async ({ page })
   const assessmentPdfPath = await assessmentPdf.path();
   expect(assessmentPdfPath).not.toBeNull();
   expect((await readFile(assessmentPdfPath!, "latin1")).toString()).toContain("501.00 Td (Learning Management reporting export)");
+});
+
+test("Users and Roles exports every filtered record to Excel and PDF", async ({ page }) => {
+  await mockPortalApi(page);
+  await page.goto("/admin/users");
+  await expect(page.getByRole("heading", { name: "Users & Roles" })).toBeVisible();
+  await expect(page.getByText("EMP-001", { exact: true })).toBeVisible();
+  const excelDownload = page.waitForEvent("download");
+  await page.getByTitle("Export filtered users to Excel").click();
+  const workbook = await excelDownload;
+  expect(workbook.suggestedFilename()).toMatch(/users-and-roles-.*\.xlsx$/);
+  const workbookPath = await workbook.path();
+  expect(workbookPath).not.toBeNull();
+  expect((await readFile(workbookPath!)).subarray(0, 4).toString("binary")).toBe("PK\u0003\u0004");
+  const pdfDownload = page.waitForEvent("download");
+  await page.getByTitle("Export filtered users to PDF").click();
+  const pdf = await pdfDownload;
+  expect(pdf.suggestedFilename()).toMatch(/users-and-roles-.*\.pdf$/);
+  const pdfPath = await pdf.path();
+  expect(pdfPath).not.toBeNull();
+  expect((await readFile(pdfPath!, "latin1")).toString()).toContain("USERS & ROLES");
 });
 
 test("create course defaults its date to today", async ({ page }) => {
