@@ -224,7 +224,7 @@ app.post('/api/roles', auth, asyncRoute(async (req,res) => {
     await client.query('BEGIN')
     const created=await client.query(`INSERT INTO user_roles(company_id,role_key,role_name,created_by) VALUES($1,$2,$3,$4) RETURNING role_key,role_name,is_system`,[company.company_id,roleKey,roleName,req.user!.id])
     const menuKeys=['Overview','Approvals','Announcements','Notification','Human Resource','Employees','Attendance','Leave','Overtime','Appraisals','Learning Management','L&D Schedule','Corporate','Payment Request Form','Advance Clearance Request Form','Material Request Form','Service Request Form','Stationary Request Form','Vehicle Request Form','Fleet Management','Vehicle Management (Internal)','Vehicle Management (Maintenance)','Ferry Management','Information Technology','IT Asset Management','IT Asset Transfer Form','IT Asset Write Out Form','Admin','Reports','HR Management','Attendance Report','Leave Report','Overtime Report','Appraisals Report','Travelling Request Report','L&D Detail Report','L&D Chart Report','Asset Management','Admin Asset Report','IT Asset Report','Corporate Services','Payment Request Report','Advance Clearance Report','Service Request Report','Material Request Report','Stationary Request Report','Vehicle Request Report','Users & Roles','Role Access Control','Approval Setup','General Setting','Item Master','Banner','Settings','My Requests']
-    for(const menuKey of menuKeys)await client.query(`INSERT INTO role_permissions(company_id,role,menu_key,allowed,updated_by) VALUES($1,$2,$3,false,$4) ON CONFLICT(company_id,role,menu_key) DO NOTHING`,[company.company_id,roleKey,menuKey,req.user!.id])
+    for(const menuKey of [...menuKeys,'HR Item Master'])await client.query(`INSERT INTO role_permissions(company_id,role,menu_key,allowed,updated_by) VALUES($1,$2,$3,false,$4) ON CONFLICT(company_id,role,menu_key) DO NOTHING`,[company.company_id,roleKey,menuKey,req.user!.id])
     await client.query('COMMIT')
     res.status(201).json(created.rows[0])
   }catch(error){
@@ -307,6 +307,25 @@ app.delete('/api/employees/:id/attachments/:attachmentId',auth,asyncRoute(async(
 app.get('/api/departments', auth, asyncRoute(async (_req,res) => {
   const result=await db.query('SELECT id,name,code FROM departments WHERE is_active=true ORDER BY name')
   res.json(result.rows)
+}))
+
+app.get('/api/hr-item-master',auth,asyncRoute(async(req,res)=>{
+  if(!await hasMenuAccess(req,'HR Item Master'))return res.status(403).json({error:'Permission denied: HR Item Master'})
+  const result=await db.query(`SELECT m.id,m.item_type,m.code,m.name FROM hr_course_masters m JOIN employees e ON e.company_id=m.company_id WHERE e.id=$1 ORDER BY m.item_type,m.code,m.id`,[req.user!.employeeId])
+  res.json(result.rows)
+}))
+app.post('/api/hr-item-master',auth,asyncRoute(async(req,res)=>{
+  if(!await hasMenuAccess(req,'HR Item Master'))return res.status(403).json({error:'Permission denied: HR Item Master'})
+  const input=z.object({id:z.string().uuid().optional(),itemType:z.enum(['main_category','employee_level','training_type','course_category']),code:z.string().trim().min(1).max(50),name:z.string().trim().min(1).max(180)}).parse(req.body)
+  const company=(await db.query('SELECT company_id FROM employees WHERE id=$1',[req.user!.employeeId])).rows[0]
+  if(!company)return res.status(403).json({error:'Company access required'})
+  try {
+    const result=input.id
+      ? await db.query('UPDATE hr_course_masters SET code=$1,name=$2,updated_at=now() WHERE id=$3 AND company_id=$4 AND item_type=$5 RETURNING id,item_type,code,name',[input.code,input.name,input.id,company.company_id,input.itemType])
+      : await db.query('INSERT INTO hr_course_masters(company_id,item_type,code,name) VALUES($1,$2,$3,$4) RETURNING id,item_type,code,name',[company.company_id,input.itemType,input.code,input.name])
+    if(!result.rowCount)return res.status(404).json({error:'Item not found'})
+    res.status(input.id?200:201).json(result.rows[0])
+  }catch(error){if((error as {code?:string}).code==='23505')return res.status(409).json({error:'This code already exists in this section.'});throw error}
 }))
 
 app.get('/api/item-master',auth,asyncRoute(async(req,res)=>{

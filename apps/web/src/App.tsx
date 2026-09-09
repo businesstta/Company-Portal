@@ -17,6 +17,7 @@ import LearningManagement from "./LearningManagement";
 import LearningSchedule from "./LearningSchedule";
 import LearningDetailReport from "./LearningDetailReport";
 import LearningChartReport from "./LearningChartReport";
+import HRItemMaster from "./HRItemMaster";
 import { exportExcel, exportPdf, type ExportCell } from "./learning-report-export";
 import "./select-design.css";
 import "./theme.css";
@@ -100,6 +101,7 @@ const pagePaths: Record<string, string> = {
   "Approval Setup": "/admin/approval-setup",
   "General Setting": "/settings",
   "Item Master": "/settings/item-master",
+  "HR Item Master": "/settings/hr-item-master",
   Banner: "/settings/branding",
   Settings: "/settings/system",
   "My Requests": "/my-requests",
@@ -138,6 +140,7 @@ const permissionMenuItems = [
   { key: "Approval Setup", level: 1 },
   { key: "General Setting", level: 0 },
   { key: "Item Master", level: 1 },
+  { key: "HR Item Master", level: 1 },
   { key: "Banner", level: 1 },
   { key: "Settings", level: 1 },
   { key: "My Requests", level: 0 },
@@ -2038,6 +2041,7 @@ function DataPage({
   if (page === "L&D Schedule") return <LearningSchedule token={token} role={role} />;
   if (page === "L&D Detail Report") return <LearningDetailReport token={token} />;
   if (page === "L&D Chart Report") return <LearningChartReport token={token} />;
+  if (page === "HR Item Master") return <HRItemMaster token={token} />;
   if (!endpoint)
     return (
       <div className="empty-page">
@@ -4398,7 +4402,7 @@ function App() {
       : item === "Users & Roles"
         ? can(item) || can("Role Access Control") || can("Approval Setup")
       : item === "General Setting"
-        ? can(item) || can("Item Master") || can("Banner") || can("Settings")
+        ? can(item) || can("Item Master") || can("HR Item Master") || can("Banner") || can("Settings")
       : can(item),
   );
   const navigate = (page: string) => {
@@ -4653,7 +4657,7 @@ function App() {
             ) : item === "General Setting" ? (
               <div className="nav-group" key={item}>
                 <button
-                  className={["Item Master","Banner","Settings"].includes(active) ? "active" : ""}
+                  className={["Item Master","HR Item Master","Banner","Settings"].includes(active) ? "active" : ""}
                   onClick={() => setGeneralOpen((open) => !open)}
                 >
                   <i>
@@ -4674,6 +4678,9 @@ function App() {
                       >
                         {label("Item Master")}
                       </button>
+                    )}
+                    {can("HR Item Master") && (
+                      <button className={active === "HR Item Master" ? "active" : ""} onClick={() => navigate("HR Item Master")}>HR Item Master</button>
                     )}
                     {can("Banner") && (
                       <button className={active === "Banner" ? "active" : ""} onClick={() => navigate("Banner")}>{label("Banner")}</button>
