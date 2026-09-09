@@ -98,6 +98,42 @@ test("create course defaults its date to today", async ({ page }) => {
   await expect(page.locator('input[name="courseDate"]')).toHaveValue(expectedToday);
 });
 
+test("create course uses HR master selections to preview and submit its code", async ({ page }) => {
+  await mockPortalApi(page);
+  const ids = {
+    main_category: "10000000-0000-4000-8000-000000000001",
+    employee_level: "10000000-0000-4000-8000-000000000002",
+    training_type: "10000000-0000-4000-8000-000000000003",
+    course_category: "10000000-0000-4000-8000-000000000004",
+  };
+  const masters = [
+    { id: ids.main_category, item_type: "main_category", code: "01", name: "Soft Skills" },
+    { id: ids.employee_level, item_type: "employee_level", code: "02", name: "Supervisor Level" },
+    { id: ids.training_type, item_type: "training_type", code: "02", name: "Online" },
+    { id: ids.course_category, item_type: "course_category", code: "05", name: "Business Skills" },
+  ];
+  let payload: Record<string, unknown> | null = null;
+  await page.route("**/api/hr-item-master", route => route.fulfill({ json: masters }));
+  await page.route("**/api/learning/courses", async route => {
+    if (route.request().method() === "GET") return route.fulfill({ json: [] });
+    payload = route.request().postDataJSON();
+    await route.fulfill({ status: 201, json: { id: "course-1", course_code: "L&D-01-02-0205" } });
+  });
+  await page.goto("/hr/learning-management");
+  await page.getByRole("button", { name: /New Course/ }).click();
+  await expect(page.locator('input[name="title"]')).toHaveCount(0);
+  await expect(page.locator('input[name="category"]')).toHaveCount(0);
+  await expect(page.locator('select[name="deliveryMethod"]')).toHaveCount(0);
+  await page.locator('select[name="main_categoryId"]').selectOption(ids.main_category);
+  await page.locator('select[name="employee_levelId"]').selectOption(ids.employee_level);
+  await page.locator('select[name="training_typeId"]').selectOption(ids.training_type);
+  await page.locator('select[name="course_categoryId"]').selectOption(ids.course_category);
+  await expect(page.locator('input[name="courseCode"]')).toHaveValue("L&D-01-02-0205");
+  await page.getByRole("button", { name: "Create Course", exact: true }).click();
+  await expect.poll(() => payload).not.toBeNull();
+  expect(payload).toMatchObject({ mainCategoryId: ids.main_category, employeeLevelId: ids.employee_level, trainingTypeId: ids.training_type, courseCategoryId: ids.course_category });
+});
+
 test("learning chart report renders verified charts and exports each format", async ({ page }) => {
   await mockPortalApi(page);
   await page.goto("/overview");
