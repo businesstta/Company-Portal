@@ -45,17 +45,21 @@ test("HR master removal confirms saved rows, preserves failures, and removes dra
   });
   await page.goto("/settings/hr-item-master");
   const remove = page.getByRole("button", { name: "Remove Main Category row 1", exact: true });
-  page.once("dialog", dialog => dialog.dismiss());
   await remove.click();
+  const modal = page.getByRole("dialog", { name: "Remove this item?" });
+  await expect(modal).toContainText("01");
+  await expect(modal).toContainText("Sample");
+  await expect(modal.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await modal.getByRole("button", { name: "Cancel" }).click();
   expect(deletes).toBe(0);
-  page.once("dialog", dialog => dialog.accept());
   await remove.click();
+  await modal.getByRole("button", { name: "Remove item" }).click();
   await expect(page.getByRole("alert")).toContainText("in use");
   await expect(remove).toBeEnabled();
   failDelete = false;
   for (const title of ["Main Category", "Employee Level", "Training Type", "Course Category"]) {
-    page.once("dialog", dialog => dialog.accept());
     await page.getByRole("button", { name: `Remove ${title} row 1`, exact: true }).click();
+    await modal.getByRole("button", { name: "Remove item" }).click();
     await expect(page.getByRole("region", { name: title, exact: true })).toContainText("No items yet");
   }
   await page.reload();

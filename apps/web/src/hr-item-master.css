@@ -10,5 +10,18 @@
 .hr-course-master [role=alert]{color:#ad203b}
 .hr-master-row-actions{display:flex;flex-direction:column;gap:6px;min-width:0}
 .hr-course-master-grid .hr-master-remove{background:#fff;color:#ad203b;border-color:#e6b4be;padding:8px 4px;font-size:12px;overflow-wrap:anywhere}
+.hr-master-modal-backdrop{position:fixed;inset:0;z-index:1100;display:grid;place-items:center;padding:20px;background:rgba(5,18,48,.62);backdrop-filter:blur(2px)}
+.hr-master-confirm-modal{width:min(440px,100%);box-sizing:border-box;background:#fff;border:1px solid #dce3ed;border-radius:18px;box-shadow:0 24px 70px rgba(5,18,48,.3);padding:26px;color:#102454}
+.hr-master-confirm-modal>div:first-of-type{float:left;margin-right:14px}
+.hr-master-confirm-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:#fff0f2;color:#ad203b;font-size:22px;font-weight:800}
+.hr-master-confirm-eyebrow{margin:0 0 4px;color:#ad203b;font-size:11px;font-weight:700;letter-spacing:.1em}
+.hr-master-confirm-modal h2{margin:0;font-size:21px}
+.hr-master-confirm-description{clear:both;margin:20px 0 14px;color:#596780;line-height:1.5}
+.hr-master-confirm-modal dl{margin:0;padding:14px 16px;border-radius:10px;background:#f5f7fb}
+.hr-master-confirm-modal dl div{display:grid;grid-template-columns:70px minmax(0,1fr);gap:12px;padding:5px 0}
+.hr-master-confirm-modal dt{color:#718096;font-size:12px}.hr-master-confirm-modal dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+.hr-master-confirm-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
+.hr-course-master .hr-master-confirm-actions button{min-width:112px}.hr-course-master .hr-master-cancel{background:#fff;color:#102454}.hr-course-master .hr-master-confirm-remove{background:#ad203b;border-color:#ad203b}
 @media(max-width:900px){.hr-course-master-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:400px){.hr-course-master-grid section{padding:12px}.hr-course-master-grid form,.hr-course-master-labels{gap:6px;grid-template-columns:minmax(60px,1fr) minmax(80px,1.5fr) 60px}}
+@media(max-width:480px){.hr-master-confirm-modal{padding:20px}.hr-master-confirm-actions{flex-direction:column-reverse}.hr-course-master .hr-master-confirm-actions button{width:100%}}
