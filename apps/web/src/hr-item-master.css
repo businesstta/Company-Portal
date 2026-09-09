@@ -21,7 +21,13 @@
 .hr-master-confirm-modal dl div{display:grid;grid-template-columns:70px minmax(0,1fr);gap:12px;padding:5px 0}
 .hr-master-confirm-modal dt{color:#718096;font-size:12px}.hr-master-confirm-modal dd{margin:0;font-weight:600;overflow-wrap:anywhere}
 .hr-master-confirm-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
-.hr-course-master .hr-master-confirm-actions button{min-width:112px}.hr-course-master .hr-master-cancel{background:#fff;color:#102454}.hr-course-master .hr-master-confirm-remove{background:#ad203b;border-color:#ad203b}
+.hr-course-master .hr-master-confirm-actions button{appearance:none;min-width:112px;height:41px;padding:0 18px;border:1px solid #dce1e7;border-radius:8px;background:#fff;color:#102454;font:600 11px 'DM Sans',sans-serif;line-height:1;cursor:pointer;transition:background-color .15s,border-color .15s,box-shadow .15s,transform .15s}
+.hr-course-master .hr-master-confirm-actions button:hover:not(:disabled){background:#f5f7fb;border-color:#b9c3d1}
+.hr-course-master .hr-master-confirm-actions button:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(101,84,220,.22)}
+.hr-course-master .hr-master-confirm-actions button:active:not(:disabled){transform:translateY(1px)}
+.hr-course-master .hr-master-confirm-actions button:disabled{cursor:not-allowed;opacity:.6}
+.hr-course-master .hr-master-confirm-actions .hr-master-confirm-remove{background:#d4485b;border-color:#d4485b;color:#fff}
+.hr-course-master .hr-master-confirm-actions .hr-master-confirm-remove:hover:not(:disabled){background:#bd364a;border-color:#bd364a}
 @media(max-width:900px){.hr-course-master-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:400px){.hr-course-master-grid section{padding:12px}.hr-course-master-grid form,.hr-course-master-labels{gap:6px;grid-template-columns:minmax(60px,1fr) minmax(80px,1.5fr) 60px}}
 @media(max-width:480px){.hr-master-confirm-modal{padding:20px}.hr-master-confirm-actions{flex-direction:column-reverse}.hr-course-master .hr-master-confirm-actions button{width:100%}}

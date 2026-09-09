@@ -50,6 +50,10 @@ test("HR master removal confirms saved rows, preserves failures, and removes dra
   await expect(modal).toContainText("01");
   await expect(modal).toContainText("Sample");
   await expect(modal.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await expect(modal.getByRole("button", { name: "Cancel" })).toHaveCSS("border-radius", "8px");
+  await expect(modal.getByRole("button", { name: "Cancel" })).toHaveCSS("height", "41px");
+  await expect(modal.getByRole("button", { name: "Remove item" })).toHaveCSS("background-color", "rgb(212, 72, 91)");
+  await expect(modal.getByRole("button", { name: "Remove item" })).toHaveCSS("color", "rgb(255, 255, 255)");
   await modal.getByRole("button", { name: "Cancel" }).click();
   expect(deletes).toBe(0);
   await remove.click();
