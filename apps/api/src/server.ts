@@ -314,6 +314,15 @@ app.get('/api/hr-item-master',auth,asyncRoute(async(req,res)=>{
   const result=await db.query(`SELECT m.id,m.item_type,m.code,m.name FROM hr_course_masters m JOIN employees e ON e.company_id=m.company_id WHERE e.id=$1 ORDER BY m.item_type,m.code,m.id`,[req.user!.employeeId])
   res.json(result.rows)
 }))
+app.delete('/api/hr-item-master/:id',auth,asyncRoute(async(req,res)=>{
+  if(!await hasMenuAccess(req,'HR Item Master'))return res.status(403).json({error:'Permission denied: HR Item Master'})
+  const id=z.string().uuid().parse(req.params.id)
+  try {
+    const result=await db.query(`DELETE FROM hr_course_masters m USING employees e WHERE m.id=$1 AND e.id=$2 AND m.company_id=e.company_id RETURNING m.id`,[id,req.user!.employeeId])
+    if(!result.rowCount)return res.status(404).json({error:'Item not found'})
+    res.json({message:'Item removed'})
+  }catch(error){if((error as {code?:string}).code==='23503')return res.status(409).json({error:'This item is in use and cannot be removed.'});throw error}
+}))
 app.post('/api/hr-item-master',auth,asyncRoute(async(req,res)=>{
   if(!await hasMenuAccess(req,'HR Item Master'))return res.status(403).json({error:'Permission denied: HR Item Master'})
   const input=z.object({id:z.string().uuid().optional(),itemType:z.enum(['main_category','employee_level','training_type','course_category']),code:z.string().trim().min(1).max(50),name:z.string().trim().min(1).max(180)}).parse(req.body)

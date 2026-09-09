@@ -8,5 +8,7 @@
 .hr-course-master-grid button{padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#102454;color:white;cursor:pointer}
 .hr-course-master-grid button:disabled{opacity:.55;cursor:default}
 .hr-course-master [role=alert]{color:#ad203b}
+.hr-master-row-actions{display:flex;flex-direction:column;gap:6px;min-width:0}
+.hr-course-master-grid .hr-master-remove{background:#fff;color:#ad203b;border-color:#e6b4be;padding:8px 4px;font-size:12px;overflow-wrap:anywhere}
 @media(max-width:900px){.hr-course-master-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:400px){.hr-course-master-grid section{padding:12px}.hr-course-master-grid form,.hr-course-master-labels{gap:6px;grid-template-columns:minmax(60px,1fr) minmax(80px,1.5fr) 60px}}
