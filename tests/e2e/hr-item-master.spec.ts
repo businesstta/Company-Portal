@@ -74,3 +74,27 @@ test("HR master removal confirms saved rows, preserves failures, and removes dra
   await expect(page.getByText("No items yet. Use + Add row to get started.")).toHaveCount(4);
   expect(deletes).toBe(beforeDraft);
 });
+
+test("each HR master card keeps its header visible and scrolls its own rows", async ({ page }) => {
+  await mockPortalApi(page);
+  const rows = ["main_category", "employee_level", "training_type", "course_category"].flatMap(type =>
+    Array.from({ length: 12 }, (_, index) => ({
+      id: `${type}-${index + 1}`,
+      item_type: type,
+      code: String(index + 1).padStart(2, "0"),
+      name: `Item ${index + 1}`,
+    })),
+  );
+  await page.route("**/api/hr-item-master", route => route.fulfill({ json: rows }));
+  await page.goto("/settings/hr-item-master");
+
+  for (const title of ["Main Category", "Employee Level", "Training Type", "Course Category"]) {
+    const section = page.getByRole("region", { name: title, exact: true });
+    const scroller = section.getByLabel(`${title} items`, { exact: true });
+    await expect(section.getByRole("button", { name: `Add ${title} row` })).toBeVisible();
+    expect(await scroller.evaluate(element => element.scrollHeight > element.clientHeight)).toBeTruthy();
+    await scroller.evaluate(element => { element.scrollTop = element.scrollHeight; });
+    expect(await scroller.evaluate(element => element.scrollTop > 0)).toBeTruthy();
+    await expect(section.getByRole("button", { name: `Add ${title} row` })).toBeVisible();
+  }
+});

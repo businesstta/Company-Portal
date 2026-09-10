@@ -69,16 +69,18 @@ export default function HRItemMaster({ token }: { token: string }) {
     {message && <p role="status">{message}</p>}
     {loading ? <p role="status">Loading HR Item Master…</p> : <div className="hr-course-master-grid">{sections.map(([type, title, label]) => <section key={type} aria-label={title}>
       <header><h2>{title}</h2><button type="button" disabled={!!saving} aria-label={`Add ${title} row`} onClick={() => setRows(current => [...current, { key: crypto.randomUUID(), item_type: type, code: "", name: "", dirty: true }])}>+ Add row</button></header>
-      <div className="hr-course-master-labels"><span>Code</span><span>{label}</span><span>Action</span></div>
-      {rows.filter(row => row.item_type === type).map((row, index) => <form key={row.key} onSubmit={event => { event.preventDefault(); void save(row); }}>
-        <input aria-label={`${title} code ${index + 1}`} required maxLength={50} value={row.code} disabled={!!saving} onChange={event => setRows(current => current.map(item => item.key === row.key ? { ...item, code: event.target.value, dirty: true } : item))} />
-        <input aria-label={`${label} name ${index + 1}`} required maxLength={180} value={row.name} disabled={!!saving} onChange={event => setRows(current => current.map(item => item.key === row.key ? { ...item, name: event.target.value, dirty: true } : item))} />
-        <div className="hr-master-row-actions">
-          <button disabled={!!saving || !row.dirty || !row.code.trim() || !row.name.trim()}>{saving === row.key && !removing ? "Saving…" : row.dirty ? "Save" : "Saved"}</button>
-          <button type="button" className="hr-master-remove" aria-label={`Remove ${title} row ${index + 1}`} disabled={!!saving} onClick={() => requestRemove(row)}>{saving === row.key && removing ? "Removing…" : "Remove"}</button>
-        </div>
-      </form>)}
-      {!rows.some(row => row.item_type === type) && <p>No items yet. Use + Add row to get started.</p>}
+      <div className="hr-course-master-scroll" tabIndex={0} aria-label={`${title} items`}>
+        <div className="hr-course-master-labels"><span>Code</span><span>{label}</span><span>Action</span></div>
+        {rows.filter(row => row.item_type === type).map((row, index) => <form key={row.key} onSubmit={event => { event.preventDefault(); void save(row); }}>
+          <input aria-label={`${title} code ${index + 1}`} required maxLength={50} value={row.code} disabled={!!saving} onChange={event => setRows(current => current.map(item => item.key === row.key ? { ...item, code: event.target.value, dirty: true } : item))} />
+          <input aria-label={`${label} name ${index + 1}`} required maxLength={180} value={row.name} disabled={!!saving} onChange={event => setRows(current => current.map(item => item.key === row.key ? { ...item, name: event.target.value, dirty: true } : item))} />
+          <div className="hr-master-row-actions">
+            <button disabled={!!saving || !row.dirty || !row.code.trim() || !row.name.trim()}>{saving === row.key && !removing ? "Saving…" : row.dirty ? "Save" : "Saved"}</button>
+            <button type="button" className="hr-master-remove" aria-label={`Remove ${title} row ${index + 1}`} disabled={!!saving} onClick={() => requestRemove(row)}>{saving === row.key && removing ? "Removing…" : "Remove"}</button>
+          </div>
+        </form>)}
+        {!rows.some(row => row.item_type === type) && <p>No items yet. Use + Add row to get started.</p>}
+      </div>
     </section>)}</div>}
     {pendingRemove && <div className="hr-master-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !removing) setPendingRemove(null); }}>
       <div className="hr-master-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="hr-master-remove-title" aria-describedby="hr-master-remove-description">
