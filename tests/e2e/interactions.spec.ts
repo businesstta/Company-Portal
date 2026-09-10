@@ -128,10 +128,11 @@ test("create course uses HR master selections to preview and submit its code", a
   await page.locator('select[name="employee_levelId"]').selectOption(ids.employee_level);
   await page.locator('select[name="training_typeId"]').selectOption(ids.training_type);
   await page.locator('select[name="course_categoryId"]').selectOption(ids.course_category);
+  await page.locator('select[name="courseSource"]').selectOption("external_outsource");
   await expect(page.locator('input[name="courseCode"]')).toHaveValue("L&D-01-02-0205");
   await page.getByRole("button", { name: "Create Course", exact: true }).click();
   await expect.poll(() => payload).not.toBeNull();
-  expect(payload).toMatchObject({ mainCategoryId: ids.main_category, employeeLevelId: ids.employee_level, trainingTypeId: ids.training_type, courseCategoryId: ids.course_category });
+  expect(payload).toMatchObject({ mainCategoryId: ids.main_category, employeeLevelId: ids.employee_level, trainingTypeId: ids.training_type, courseCategoryId: ids.course_category, courseSource: "external_outsource" });
 });
 
 test("learning chart report renders verified charts and exports each format", async ({ page }) => {
